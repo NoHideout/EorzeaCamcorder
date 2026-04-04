@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
 using Dalamud.Interface.Windowing;
@@ -6,6 +8,7 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using EorzeaCamcorder.Recording;
 using EorzeaCamcorder.Windows;
+using FFMpegCore;
 
 namespace EorzeaCamcorder;
 
@@ -21,6 +24,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
 
     private const string CommandName = "/rec";
+    private const string SetupCommandName = "/recsetuptest";
 
     public Configuration Configuration { get; init; }
     public GameRecorder Recorder { get; init; }
@@ -29,11 +33,15 @@ public sealed class Plugin : IDalamudPlugin
     public readonly WindowSystem WindowSystem = new("EorzeaCamcorder");
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
-
+    public FFmpegSetupWindow FFmpegSetupWindow { get; init; }
+    
+    //Todo Change ipc interaction
     private IDtrBarEntry? _dtrEntry;
 
     public Plugin()
     {
+        PluginInterface.UiBuilder.DisableGposeUiHide =true;
+        
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Configuration.Initialize(PluginInterface);
 
@@ -42,15 +50,24 @@ public sealed class Plugin : IDalamudPlugin
 
         ConfigWindow = new ConfigWindow(this);
         MainWindow = new MainWindow(this);
-
+        FFmpegSetupWindow = new FFmpegSetupWindow();
+        
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(MainWindow);
+        WindowSystem.AddWindow(FFmpegSetupWindow);
 
-        PluginInterface.UiBuilder.DisableGposeUiHide =true;
+        if (!checkFFmpeg())
+        {
+            FFmpegSetupWindow.IsOpen = true;
+        }
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
             HelpMessage = "Opens the EorzeaCamcorder main window"
+        });
+        CommandManager.AddHandler(SetupCommandName, new CommandInfo(OnSetupCommand)
+        {
+            HelpMessage = "Debug: Opens the FFmpeg Setup Window"
         });
 
         _dtrEntry = DtrBar.Get("EorzeaCamcorder");
@@ -65,6 +82,41 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.Draw += Draw;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
+    }
+
+    private bool checkFFmpeg()
+    {
+        var exeName = "ffmpeg.exe";
+        var configDir = PluginInterface.ConfigDirectory.FullName;
+
+        if (File.Exists(Path.Combine(configDir, exeName)))
+        {
+            GlobalFFOptions.Configure(new FFOptions(){BinaryFolder = configDir});
+            Log.Debug($"FFmpeg found in {configDir}");
+            return true;
+        }
+        Log.Debug($"FFmpeg not found in {configDir}");
+        
+        var envPath = Environment.GetEnvironmentVariable("PATH");
+        if (envPath != null)
+        {
+            foreach (var path in envPath.Split(Path.PathSeparator))
+            {
+                try
+                {
+                    if (File.Exists(Path.Combine(path, exeName)))
+                    {
+                        Log.Debug($"FFmpeg found in {path + exeName}");
+                        return true;
+                    }
+                }
+                catch
+                {
+                    continue;
+                }
+            }
+        }
+        return false;
     }
 
     public void Dispose()
@@ -84,7 +136,7 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.RemoveHandler(CommandName);
     }
-
+    private void OnSetupCommand(string command, string args) => FFmpegSetupWindow.IsOpen = true;
     private void OnCommand(string command, string args)
     {
         MainWindow.Toggle();
