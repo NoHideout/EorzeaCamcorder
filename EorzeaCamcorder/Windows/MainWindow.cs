@@ -4,6 +4,7 @@ using System.IO;
 using System.Numerics;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
 
@@ -19,7 +20,8 @@ public class MainWindow : Window, IDisposable
     {
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(150, 140)
+            MinimumSize = new Vector2(260, 200),
+            MaximumSize = new Vector2(600, 600)
         };
         this.plugin = plugin;
 
@@ -34,60 +36,135 @@ public class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
-        if (!string.IsNullOrWhiteSpace(_errorMessage)) 
-        {
-            ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DPSRed);
-            ImGui.TextWrapped($"ERROR: {_errorMessage}");
-            ImGui.PopStyleColor();
+        DrawHeader();
+        DrawError();
+        DrawStatus();
+        DrawRecordingControls();
+        DrawReplayControls();
+        DrawFooter();
+    }
 
-            if ((DateTime.Now - _errorTime).TotalSeconds > 10)
-            {
-                if (ImGui.Button("Dismiss Error")) _errorMessage = null;
-            }
-            ImGui.Separator();
+    private void DrawHeader()
+    {
+        ImGui.PushFont(UiBuilder.IconFont);
+        ImGui.Text("\uf03d"); // cute camera icon
+        ImGui.PopFont();
+
+        ImGui.SameLine();
+        ImGui.TextColored(ImGuiColors.ParsedGold, "Eorzea Camcorder");
+
+        ImGui.Separator();
+    }
+
+    private void DrawError()
+    {
+        if (string.IsNullOrWhiteSpace(_errorMessage)) return;
+
+        ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DPSRed);
+        ImGui.TextWrapped($"Error: {_errorMessage}");
+        ImGui.PopStyleColor();
+
+        if ((DateTime.Now - _errorTime).TotalSeconds > 5)
+        {
+            if (ImGui.SmallButton("Dismiss")) _errorMessage = null;
         }
 
-        if (plugin.Recorder.IsRecording)
+        ImGui.Separator();
+    }
+
+    private void DrawStatus()
+    {
+        string statusText;
+        Vector4 color;
+
+        if (plugin.Recorder.IsRecording && plugin.Recorder.IsReplayBufferRunning)
         {
-            ImGui.TextColored(ImGuiColors.ParsedGreen, "● RECORDING");
+            statusText = "● Recording + Replay Buffer";
+            color = ImGuiColors.ParsedPink;
+        }
+        else if (plugin.Recorder.IsRecording)
+        {
+            statusText = "● Recording";
+            color = ImGuiColors.HealerGreen;
+        }
+        else if (plugin.Recorder.IsReplayBufferRunning)
+        {
+            statusText = "● Replay Buffer Active";
+            color = ImGuiColors.ParsedBlue;
         }
         else if (plugin.Recorder.IsSaving)
         {
-            ImGui.TextColored(ImGuiColors.ParsedOrange, "● SAVING / ENCODING...");
+            statusText = "● Saving...";
+            color = ImGuiColors.ParsedOrange;
         }
         else
         {
-            ImGui.TextColored(ImGuiColors.DalamudGrey, "● IDLE");
+            statusText = "● Idle";
+            color = ImGuiColors.DalamudGrey;
         }
 
+        ImGui.TextColored(color, statusText);
         ImGui.Spacing();
+    }
 
-        if (plugin.Recorder.IsSaving) ImGui.BeginDisabled();
-
-        var btnText = plugin.Recorder.IsRecording ? "STOP RECORDING" : "START RECORDING";
-        var btnColor = plugin.Recorder.IsRecording ? ImGuiColors.DPSRed : ImGuiColors.HealerGreen;
+    private void DrawRecordingControls()
+    {
+        bool isRecording = plugin.Recorder.IsRecording;
+        var btnColor = isRecording ? ImGuiColors.DPSRed : ImGuiColors.HealerGreen;
 
         ImGui.PushStyleColor(ImGuiCol.Button, btnColor);
-        if (ImGui.Button(btnText, new Vector2(ImGui.GetContentRegionAvail().X, 40)))
+        if (ImGui.Button(isRecording ? "Stop Recording" : "Start Recording", new Vector2(-1, 40)))
         {
-            if (plugin.Recorder.IsRecording)
-            {
+            if (isRecording)
                 Task.Run(async () => await plugin.Recorder.StopRecording());
-            }
             else
-            {
-                _errorMessage = null;
-                plugin.Recorder.StartRecording(); 
-            }
+                plugin.Recorder.StartRecording();
         }
         ImGui.PopStyleColor();
 
-        if (plugin.Recorder.IsSaving) ImGui.EndDisabled();
+        ImGui.Spacing();
+    }
+
+    private void DrawReplayControls()
+    {
+        ImGui.Separator();
+        ImGui.Text("Replay Buffer");
+
+        bool isReplay = plugin.Recorder.IsReplayBufferRunning;
+        if (ImGui.Checkbox("Enable Replay Buffer", ref isReplay))
+        {
+            if (isReplay) plugin.Recorder.StartReplayBuffer();
+            else Task.Run(async () => await plugin.Recorder.StopReplayBuffer());
+        }
 
         ImGui.Spacing();
+
+        bool saving = plugin.Recorder.IsSaving;
+        bool replayActive = plugin.Recorder.IsReplayBufferRunning;
+
+        if (!replayActive || saving)
+            ImGui.BeginDisabled();
+
+        ImGui.PushStyleColor(ImGuiCol.Button, ImGuiColors.ParsedBlue);
+        if (ImGui.Button(saving ? "Saving Replay..." : "Save Replay", new Vector2(-1, 35)))
+        {
+            plugin.Recorder.SaveReplayBuffer();
+        }
+        ImGui.PopStyleColor();
+
+        if (!replayActive || saving) ImGui.EndDisabled();
+
+        ImGui.Spacing();
+    }
+
+    private void DrawFooter()
+    {
         ImGui.Separator();
         ImGui.Spacing();
-        if (ImGui.Button("Open Folder", new Vector2(ImGui.GetContentRegionAvail().X / 2 - 5, 0)))
+
+        float half = ImGui.GetContentRegionAvail().X / 2;
+
+        if (ImGui.Button("Open Folder", new Vector2(half - 5, 30)))
         {
             try
             {
@@ -95,19 +172,18 @@ public class MainWindow : Window, IDisposable
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = plugin.Configuration.OutputDirectory,
-                    UseShellExecute = true,
-                    Verb = "open"
+                    UseShellExecute = true
                 });
             }
             catch (Exception ex)
             {
-                _errorMessage = $"Could not open folder: {ex.Message}";
+                _errorMessage = ex.Message;
             }
         }
 
         ImGui.SameLine();
 
-        if (ImGui.Button("Settings", new Vector2(ImGui.GetContentRegionAvail().X, 0)))
+        if (ImGui.Button("Settings", new Vector2(half, 30)))
         {
             plugin.ToggleConfigUi();
         }

@@ -16,7 +16,9 @@ public class Configuration : IPluginConfiguration
     public bool ShowAdvancedSettings { get; set; } = false;
     public string OutputFormat { get; set; } = "mp4";
     public string VideoEncoder { get; set; } = "Software (x264)";
-
+    
+    public int ReplayBufferSeconds { get; set; } = 30;
+    
     [NonSerialized]
     private IDalamudPluginInterface? _pluginInterface;
 

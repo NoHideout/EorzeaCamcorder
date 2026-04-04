@@ -1,32 +1,32 @@
 using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using FFMpegCore;
 using FFMpegCore.Enums;
+using FFMpegCore.Pipes;
 
 namespace EorzeaCamcorder.Recording;
 
 public static class FFmpegMuxer
 {
-    public static async Task EncodeAsync(
+    public static async Task StartCaptureEngineAsync(
         CancellationToken token, 
         BlockingCollection<CapturedFrame> videoQueue, 
         BlockingCollection<byte[]> audioQueue, 
         AudioRecorder audioRecorder,
-        string outputFileName, 
+        BroadcastStream outputStream, 
         Configuration config,
         Action<string>? onRecordingError)
     {
         try
         {
-            if (!videoQueue.TryTake(out CapturedFrame firstFrame, 10000, token)) 
-                throw new Exception("Timed out waiting for first frame.");
+            if (!videoQueue.TryTake(out CapturedFrame firstFrame, 10000, token)) return;
 
             int width = firstFrame.Width;
             int height = firstFrame.Height;
 
-            // Wait/poll for audio format
             int sr = 0, ch = 0, bps = 0;
             for (int i = 0; i < 50; i++)
             {
@@ -39,7 +39,6 @@ public static class FFmpegMuxer
             var videoPipeSource = new VideoPipeSource(videoQueue, firstFrame, width, height, config.TargetFps);
             var audioPipeSource = new AudioPipeSource(audioQueue, sr, ch, audioFmt);
 
-            
             string targetCodec = config.VideoEncoder switch
             {
                 "NVIDIA (NVENC)" => "h264_nvenc",
@@ -47,38 +46,59 @@ public static class FFmpegMuxer
                 "Intel (QSV)" => "h264_qsv",
                 _ => "libx264"
             };
-            Plugin.Log.Information($"Starting FFmpeg Muxer... Res: {width}x{height}, Audio: {sr}Hz {bps}bps, Encoder: {targetCodec}");
-            
+
+            Plugin.Log.Information($"Starting Background FFmpeg Engine... Res: {width}x{height}, Encoder: {targetCodec}");
+
             await FFMpegArguments
                   .FromPipeInput(videoPipeSource)
                   .AddPipeInput(audioPipeSource)
-                  .OutputToFile(outputFileName, true, options => 
+                  .OutputToPipe(new StreamPipeSink(outputStream), options => 
                   {
                       options
                           .WithVideoCodec(targetCodec) 
                           .WithAudioCodec(AudioCodec.Aac)
-                          .WithFastStart()
+                          .ForceFormat("mpegts")
                           .WithCustomArgument($"-b:v {config.VideoBitrateKbps}k")
-                          .WithCustomArgument("-pix_fmt yuv420p");
+                          .WithCustomArgument("-pix_fmt yuv420p")
+                          .WithCustomArgument($"-g {config.TargetFps}");
 
                       if (config.ResolutionHeight > 0)
-                      {
                           options.WithCustomArgument($"-vf scale=-2:{config.ResolutionHeight}");
-                      }
                   })
-                  .NotifyOnError(msg => Plugin.Log.Debug($"[FFmpeg] {msg}"))
-                  .NotifyOnOutput(msg => Plugin.Log.Debug($"[FFmpeg] {msg}"))
+                  .NotifyOnError(msg => Plugin.Log.Debug($"[FFmpeg Engine] {msg}"))
                   .ProcessAsynchronously();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            Plugin.Log.Error($"Encoding Error: {ex.Message}");
-            onRecordingError?.Invoke($"Encoding failed: {ex.Message}");
+            Plugin.Log.Error($"Capture Engine Error: {ex.Message}");
+            onRecordingError?.Invoke($"Engine failed: {ex.Message}");
         }
-        finally 
+        finally { audioRecorder.Stop(); }
+    }
+
+    public static async Task RemuxToFinalFormatAsync(string inputTsFile, string finalFilePath, bool deleteInput)
+    {
+        try
         {
-            audioRecorder.Stop(); 
+            Plugin.Log.Information($"Remuxing stream to: {finalFilePath}");
+
+            await FFMpegArguments
+                .FromFileInput(inputTsFile)
+                .OutputToFile(finalFilePath, true, options => options
+                    .WithCustomArgument("-c copy")
+                    .WithFastStart())
+                .ProcessAsynchronously();
+
+            Plugin.Log.Information($"Successfully saved: {finalFilePath}");
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Error($"Failed to process video: {ex.Message}");
+        }
+        finally
+        {
+            if (deleteInput && File.Exists(inputTsFile)) File.Delete(inputTsFile);
         }
     }
 }

@@ -13,12 +13,19 @@ namespace EorzeaCamcorder.Recording;
 
 public class GameRecorder : IDisposable
 {
+    private readonly Configuration _config;
     private int _targetFps = 60;
-    
+    private long _ticksPerFrame = 166666;
+
     public IDalamudTextureWrap? PreviewTexture { get; private set; }
+    
+    public bool IsEngineRunning { get; private set; } = false;
     public bool IsRecording { get; private set; } = false;
-    public bool IsSaving { get; private set; } = false;
+    public bool IsReplayBufferRunning { get; private set; } = false;
     public string Initiator { get; private set; } = "User";
+
+    private int _savingTasks = 0;
+    public bool IsSaving => _savingTasks > 0;
 
     public event Action<string>? OnRecordingError;
 
@@ -32,46 +39,30 @@ public class GameRecorder : IDisposable
 
     private Stopwatch _recordingStopwatch = new();
     private long _encodedFrameCount = 0;
+
+    private readonly BroadcastStream _broadcastStream = new();
+    private RollingMemoryStream? _ringBuffer;
+    private FileStream? _activeFileStream;
     
-    private readonly Configuration _config;
-    public GameRecorder(Configuration config) 
-    { 
-        _config = config; 
-    }
-    
-    public void StartRecording(string? customFilePath = null, string initiator = "User")
+    private string? _currentRecordingFinalPath;
+    private string? _currentRecordingTempPath;
+
+    public GameRecorder(Configuration config) { _config = config; }
+
+    private void EnsureEngineRunning(string initiator)
     {
-        if (IsRecording || IsSaving) return;
+        if (IsEngineRunning) return;
 
         try
         {
-            string? filePath = customFilePath;
-            if (string.IsNullOrEmpty(filePath))
-            {
-                if (!Directory.Exists(_config.OutputDirectory)) 
-                {
-                    Directory.CreateDirectory(_config.OutputDirectory);
-                }
-                filePath = Path.Combine(_config.OutputDirectory, $"Recording_{DateTime.Now:yyyyMMdd_HHmmss}.{_config.OutputFormat}");
-            }
-            else
-            {
-                var dir = Path.GetDirectoryName(filePath);
-                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                {
-                    Directory.CreateDirectory(dir);
-                }
-            }
-
             _targetFps = _config.TargetFps;
-            IsRecording = true;
+            _ticksPerFrame = 10_000_000 / _targetFps;
+            IsEngineRunning = true;
             Initiator = initiator;
 
             _audioCaptureStarted = false;
             _encodedFrameCount = 0;
             _recordingStopwatch.Reset();
-
-            Plugin.Log.Information($"Starting recording to {filePath} (Initiated by: {initiator})...");
 
             _audioRecorder = new AudioRecorder();
             _cancellationTokenSource = new CancellationTokenSource();
@@ -80,59 +71,132 @@ public class GameRecorder : IDisposable
             _audioQueue = new BlockingCollection<byte[]>();
             
             var viewportId = ImGui.GetMainViewport().ID;
-
             _audioRecorder.StartToCallback(OnAudioDataReceived);
             
-            _encoderTask = Task.Run(() => FFmpegMuxer.EncodeAsync(
-                _cancellationTokenSource.Token, 
-                _frameQueue, 
-                _audioQueue, 
-                _audioRecorder, 
-                filePath,
-                _config,
-                OnRecordingError));
+            _encoderTask = Task.Run(() => FFmpegMuxer.StartCaptureEngineAsync(
+                _cancellationTokenSource.Token, _frameQueue, _audioQueue, 
+                _audioRecorder, _broadcastStream, _config, OnRecordingError));
 
             Task.Run(async () => await CreateTextureWrap(_cancellationTokenSource.Token, viewportId));
         }
         catch (Exception ex)
         {
-            Plugin.Log.Error(ex, "Failed to start recording.");
-            OnRecordingError?.Invoke($"Failed to start: {ex.Message}");
-            IsRecording = false;
+            Plugin.Log.Error(ex, "Failed to start capture engine.");
+            IsEngineRunning = false;
             CleanupResources();
         }
     }
 
-    private void OnAudioDataReceived(byte[] data, int size)
+    private async Task CheckEngineStop()
     {
-        if (!IsRecording || !_audioCaptureStarted || _audioQueue == null)
-            return;
-        _audioQueue.Add(data);
+        if (!IsRecording && !IsReplayBufferRunning && IsEngineRunning)
+        {
+            IsEngineRunning = false;
+            _recordingStopwatch.Stop();
+            _audioRecorder?.Stop();
+
+            _frameQueue?.CompleteAdding();
+            _audioQueue?.CompleteAdding();
+
+            if (_encoderTask != null) try { await _encoderTask; } catch { }
+            CleanupResources();
+        }
+    }
+    
+    public void StartRecording(string? customFilePath = null, string initiator = "User")
+    {
+        if (IsRecording) return;
+
+        if (!Directory.Exists(_config.OutputDirectory)) Directory.CreateDirectory(_config.OutputDirectory);
+
+        _currentRecordingFinalPath = customFilePath ?? Path.Combine(_config.OutputDirectory, $"Recording_{DateTime.Now:yyyyMMdd_HHmmss}.{_config.OutputFormat}");
+        _currentRecordingTempPath = _currentRecordingFinalPath + ".ts";
+
+        _activeFileStream = new FileStream(_currentRecordingTempPath, FileMode.Create, FileAccess.Write, FileShare.Read);
+        _broadcastStream.FileStream = _activeFileStream;
+        
+        IsRecording = true;
+        Plugin.Log.Information($"Started Recording to: {_currentRecordingFinalPath}");
+        EnsureEngineRunning(initiator);
     }
 
     public async Task StopRecording()
     {
         if (!IsRecording) return;
         IsRecording = false;
-        IsSaving = true;
 
-        _recordingStopwatch.Stop();
-        _audioRecorder?.Stop();
+        _broadcastStream.FileStream = null;
+        _activeFileStream?.Dispose();
+        _activeFileStream = null;
 
-        _frameQueue?.CompleteAdding();
-        _audioQueue?.CompleteAdding();
+        string tempPath = _currentRecordingTempPath!;
+        string finalPath = _currentRecordingFinalPath!;
 
-        if (_encoderTask != null) try { await _encoderTask; } catch { }
+        await CheckEngineStop();
 
-        CleanupResources();
-        IsSaving = false;
-        Plugin.Log.Information("Recording saved.");
+        Interlocked.Increment(ref _savingTasks);
+        Task.Run(async () => {
+            try { await FFmpegMuxer.RemuxToFinalFormatAsync(tempPath, finalPath, true); }
+            finally { Interlocked.Decrement(ref _savingTasks); }
+        });
+    }
+
+    public void StartReplayBuffer(string initiator = "User")
+    {
+        if (IsReplayBufferRunning) return;
+
+        int capacityBytes = ((_config.VideoBitrateKbps + 200) * 1024 / 8) * _config.ReplayBufferSeconds;
+        _ringBuffer = new RollingMemoryStream(capacityBytes);
+        
+        _broadcastStream.RingBuffer = _ringBuffer;
+        IsReplayBufferRunning = true;
+        
+        Plugin.Log.Information($"Replay Buffer ({_config.ReplayBufferSeconds}s) activated in RAM.");
+        EnsureEngineRunning(initiator);
+    }
+
+    public async Task StopReplayBuffer()
+    {
+        if (!IsReplayBufferRunning) return;
+        IsReplayBufferRunning = false;
+
+        _broadcastStream.RingBuffer = null;
+        _ringBuffer = null;
+
+        Plugin.Log.Information("Replay Buffer deactivated.");
+        await CheckEngineStop();
+    }
+
+    public void SaveReplayBuffer(string? customFilePath = null)
+    {
+        if (!IsReplayBufferRunning || _ringBuffer == null) return;
+
+        byte[] snapshot = _ringBuffer.TakeSnapshot();
+        
+        if (!Directory.Exists(_config.OutputDirectory)) Directory.CreateDirectory(_config.OutputDirectory);
+        string finalPath = customFilePath ?? Path.Combine(_config.OutputDirectory, $"Replay_{DateTime.Now:yyyyMMdd_HHmmss}.{_config.OutputFormat}");
+        string tempTsFile = finalPath + ".temp.ts";
+
+        Interlocked.Increment(ref _savingTasks);
+        Task.Run(async () => {
+            try 
+            {
+                await File.WriteAllBytesAsync(tempTsFile, snapshot);
+                await FFmpegMuxer.RemuxToFinalFormatAsync(tempTsFile, finalPath, true);
+            }
+            finally { Interlocked.Decrement(ref _savingTasks); }
+        });
+    }
+    
+    private void OnAudioDataReceived(byte[] data, int size)
+    {
+        if (!IsEngineRunning || !_audioCaptureStarted || _audioQueue == null) return;
+        _audioQueue.Add(data);
     }
 
     public void Update()
     {
-        if (!IsRecording || PreviewTexture == null || _frameQueue == null || _frameQueue.IsAddingCompleted)
-            return;
+        if (!IsEngineRunning || PreviewTexture == null || _frameQueue == null || _frameQueue.IsAddingCompleted) return;
 
         if (!_recordingStopwatch.IsRunning)
         {
@@ -143,9 +207,8 @@ public class GameRecorder : IDisposable
         }
 
         double elapsedSeconds = _recordingStopwatch.Elapsed.TotalSeconds;
-        long expectedTotalFrames = (long)(elapsedSeconds * _targetFps);
-
-        long framesToCapture = expectedTotalFrames - _encodedFrameCount;
+        long expectedFrames = (long)(elapsedSeconds * _targetFps);
+        long framesToCapture = expectedFrames - _encodedFrameCount;
 
         if (framesToCapture > 0)
         {
@@ -186,11 +249,10 @@ public class GameRecorder : IDisposable
             int pitchInUints = pitch / 4;
             int strideInUints = width; 
 
-            // RGBA to BGRA
             for (int y = 0; y < height; y++)
             {
                 int srcRowStart = y * pitchInUints;
-                int dstRowStart = y * strideInUints;
+                int dstRowStart = y * strideInUints; 
 
                 for (int x = 0; x < width; x++)
                 {
@@ -199,26 +261,14 @@ public class GameRecorder : IDisposable
                 }
             }
 
-            var frame = new CapturedFrame
-            {
-                Data = rawBuffer,
-                RepeatCount = repeatCount,
-                Width = width,
-                Height = height
-            };
+            var frame = new CapturedFrame { Data = rawBuffer, RepeatCount = repeatCount, Width = width, Height = height };
 
             try
             {
                 if (!_audioCaptureStarted) _audioCaptureStarted = true;
-                if (!queueRef.TryAdd(frame))
-                {
-                    System.Buffers.ArrayPool<byte>.Shared.Return(rawBuffer);
-                }
+                if (!queueRef.TryAdd(frame)) System.Buffers.ArrayPool<byte>.Shared.Return(rawBuffer);
             }
-            catch (InvalidOperationException) 
-            {
-                System.Buffers.ArrayPool<byte>.Shared.Return(rawBuffer);
-            }
+            catch (InvalidOperationException) { System.Buffers.ArrayPool<byte>.Shared.Return(rawBuffer); }
         }
         catch (Exception ex) { Plugin.Log.Error($"Frame capture error: {ex.Message}"); }
     }
@@ -232,13 +282,57 @@ public class GameRecorder : IDisposable
         }
         catch { }
     }
+    
+    //Todo figure out how to properly implement
+    public void RecoverOrphanedFiles()
+    {
+        if (!Directory.Exists(_config.OutputDirectory)) return;
 
+        Task.Run(async () =>
+        {
+            string[] tsFiles = Directory.GetFiles(_config.OutputDirectory, "*.ts");
+            foreach (var tsFile in tsFiles)
+            {
+                try
+                {
+                    using (File.Open(tsFile, FileMode.Open, FileAccess.Read, FileShare.None)) { }
+                    string finalPath = tsFile.Substring(0, tsFile.Length - 3);
+
+                    Plugin.Log.Information($"Recovering orphaned file: {tsFile}");
+                    
+                    Interlocked.Increment(ref _savingTasks);
+                    try 
+                    { 
+                        await FFmpegMuxer.RemuxToFinalFormatAsync(tsFile, finalPath, true); 
+                    }
+                    finally 
+                    { 
+                        Interlocked.Decrement(ref _savingTasks); 
+                    }
+                }
+                catch (IOException) { }
+                catch (Exception ex)
+                {
+                    Plugin.Log.Error($"Failed to recover {tsFile}: {ex.Message}");
+                }
+            }
+        });
+    }
+    
     private void CleanupResources()
     {
         _cancellationTokenSource?.Dispose(); _cancellationTokenSource = null;
         PreviewTexture?.Dispose(); PreviewTexture = null;
         _audioRecorder?.Dispose(); _audioRecorder = null;
+        _ringBuffer = null;
+        _activeFileStream?.Dispose(); _activeFileStream = null;
+        _broadcastStream.RingBuffer = null;
+        _broadcastStream.FileStream = null;
     }
 
-    public void Dispose() { if (IsRecording) _ = StopRecording(); }
+    public void Dispose() 
+    { 
+        if (IsRecording) _ = StopRecording(); 
+        if (IsReplayBufferRunning) _ = StopReplayBuffer();
+    }
 }

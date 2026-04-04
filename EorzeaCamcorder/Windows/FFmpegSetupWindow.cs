@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
 using FFMpegCore;
 using FFMpegCore.Extensions.Downloader;
@@ -14,9 +15,9 @@ public class FFmpegSetupWindow : Window
     private bool _isDownloading = false;
     private string _downloadMessage = "";
 
-    public FFmpegSetupWindow() : base("FFmpeg Required - Setup")
+    public FFmpegSetupWindow() : base("EorzeaCamcorder - Setup")
     {
-        Size = new Vector2(550, 320);
+        Size = new Vector2(550, 400); 
         SizeCondition = ImGuiCond.FirstUseEver;
         Flags = ImGuiWindowFlags.NoCollapse;
     }
@@ -28,42 +29,92 @@ public class FFmpegSetupWindow : Window
         
         if (_isDownloading)
         {
-            ImGui.TextColored(new Vector4(0.0f, 1.0f, 0.0f, 1.0f), "Downloading FFmpeg...");
+            ImGui.Spacing();
+            ImGui.TextColored(ImGuiColors.HealerGreen, "Downloading FFmpeg...");
             ImGui.TextWrapped(_downloadMessage);
             return;
         }
         
         ImGui.Separator();
+        ImGui.Spacing();
         
-        ImGui.Text("Option 1: Automatic Installation (Recommended)");
+        ImGui.TextColored(ImGuiColors.ParsedGreen, "Option 1: Automatic Installation (Recommended)");
+        ImGui.Indent();
         ImGui.TextWrapped("Automatically download FFmpeg binaries specifically for this plugin.");
-        if (ImGui.Button("Download Automatically"))
+        ImGui.Spacing();
+
+        float indentSpace = ImGui.GetStyle().IndentSpacing;
+        float fullBtnWidth = ImGui.GetContentRegionAvail().X - indentSpace;
+
+        ImGui.PushStyleColor(ImGuiCol.Button, ImGuiColors.HealerGreen);
+        if (ImGui.Button("Download Automatically", new Vector2(fullBtnWidth, 35)))
         {
             StartAutomaticDownload();
         }
+        ImGui.PopStyleColor();
+        ImGui.Unindent();
         
         ImGui.Spacing();
+        ImGui.Spacing();
         ImGui.Separator();
-        ImGui.Text("Option 2: Manual Installation");
-        ImGui.TextWrapped("Download FFmpeg yourself and add it to your system's PATH. You will need to restart the game after doing this.");
-        if (ImGui.Button("Open Download Page (gyan.dev)"))
+        ImGui.Spacing();
+        
+        ImGui.TextColored(ImGuiColors.DalamudGrey, "Option 2: Manual Installation");
+        ImGui.Indent();
+        ImGui.TextWrapped("Download FFmpeg and extract the .exe files directly into this plugin's config folder.");
+        ImGui.TextWrapped("Alternatively, advanced users may add the binaries to their system's PATH environment variable.");
+        ImGui.TextWrapped("Please note: Manual installations are not officially supported.");
+        ImGui.Spacing();
+        
+        float itemSpacing = ImGui.GetStyle().ItemSpacing.X;
+        float availWidth = ImGui.GetContentRegionAvail().X - indentSpace;
+        float halfWidth = (availWidth - itemSpacing) / 2;
+        
+        if (ImGui.Button("Open Download Page", new Vector2(halfWidth, 0)))
         {
-            try
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "https://www.gyan.dev/ffmpeg/builds/",
-                    UseShellExecute = true
-                });
+            try { Process.Start(new ProcessStartInfo { FileName = "https://ffmpeg.org/download.html", UseShellExecute = true }); }
+            catch (Exception ex) { Plugin.Log.Error($"Could not open browser: {ex.Message}"); }
+        }
+
+        ImGui.SameLine();
+
+        if (ImGui.Button("Open Config Directory", new Vector2(halfWidth, 0)))
+        {
+            try 
+            { 
+                Process.Start(new ProcessStartInfo 
+                { 
+                    FileName = Plugin.PluginInterface.ConfigDirectory.FullName, 
+                    UseShellExecute = true, 
+                    Verb = "open" 
+                }); 
             }
-            catch (Exception ex)
-            {
-                Plugin.Log.Error($"Could not open browser: {ex.Message}");
-            }
+            catch (Exception ex) { Plugin.Log.Error($"Could not open config directory: {ex.Message}"); }
         }
 
         ImGui.Spacing();
-        ImGui.TextWrapped("1. Download 'ffmpeg-release-essentials.zip'\n2. Extract the archive somewhere safe.\n3. Add the extracted 'bin' folder to your Windows Environment Variables (PATH).\n4. Restart Final Fantasy XIV.");
+        ImGui.Spacing();
+        
+        ImGui.TextColored(ImGuiColors.DalamudGrey3, "Instructions:");
+        ImGui.BulletText("Download 'ffmpeg-release-essentials.zip'");
+        ImGui.BulletText("Extract the archive.");
+        ImGui.BulletText("Copy 'ffmpeg.exe' and 'ffplay.exe' from the bin folder into the Config Directory.");
+        ImGui.BulletText("Restart the plugin or FFXIV.");
+        
+        ImGui.Unindent();
+        ImGui.Spacing();
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+        
+        ImGui.TextColored(ImGuiColors.DalamudGrey3, "License Information");
+        ImGui.TextWrapped("This plugin uses FFmpeg to handle video encoding. FFmpeg is free software licensed under the GNU General Public License (GPLv2). EorzeaCamcorder does not distribute FFmpeg directly.");
+        
+        if (ImGui.Button("Read FFmpeg License"))
+        {
+            try { Process.Start(new ProcessStartInfo { FileName = "https://ffmpeg.org/legal.html", UseShellExecute = true }); }
+            catch (Exception ex) { Plugin.Log.Error($"Could not open browser: {ex.Message}"); }
+        }
     }
 
     private void StartAutomaticDownload()
@@ -81,7 +132,7 @@ public class FFmpegSetupWindow : Window
                 await FFMpegDownloader.DownloadBinaries();
 
                 _downloadMessage = "Download complete! You can now use the plugin.";
-                Plugin.Log.Information("FFmpeg successfully downloaded and configured automatically.");
+                Plugin.Log.Information("FFmpeg successfully downloaded.");
                 
                 await Task.Delay(3000);
                 IsOpen = false;
