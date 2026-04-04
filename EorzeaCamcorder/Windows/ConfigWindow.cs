@@ -1,22 +1,21 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
-using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
 
 namespace EorzeaCamcorder.Windows;
 
 public class ConfigWindow : Window, IDisposable
 {
-    private readonly Configuration configuration;
+    private Configuration Configuration;
 
-    public ConfigWindow(Plugin plugin) : base("XIV Recorder Settings")
+    public ConfigWindow(Plugin plugin) : base("EorzeaCamcorder Configuration")
     {
-        Flags = ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse;
-        Size = new Vector2(400, 300);
-        SizeCondition = ImGuiCond.FirstUseEver;
-
-        configuration = plugin.Configuration;
+        SizeConstraints = new WindowSizeConstraints
+        {
+            MinimumSize = new Vector2(450, 250)
+        };
+        Configuration = plugin.Configuration;
     }
 
     public void Dispose() { }
@@ -25,32 +24,107 @@ public class ConfigWindow : Window, IDisposable
     {
         bool save = false;
 
-        ImGui.Text("Output Folder");
-        var path = configuration.OutputPath;
-        if (ImGui.InputText("##path", ref path, 255))
+        string outDir = Configuration.OutputDirectory;
+        if (ImGui.InputText("Output Directory", ref outDir, 512))
         {
-            configuration.OutputPath = path;
-            save = true;
-        }
-        ImGuiHelpers.ScaledDummy(5);
-
-        int fps = configuration.FrameRate;
-        if (ImGui.SliderInt("Frame Rate", ref fps, 10, 144))
-        {
-            configuration.FrameRate = fps;
+            Configuration.OutputDirectory = outDir;
             save = true;
         }
 
-        int bitrateMbps = configuration.Bitrate / 1_000_000;
-        if (ImGui.SliderInt("Bitrate (Mbps)", ref bitrateMbps, 5, 100))
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        int fps = Configuration.TargetFps;
+        if (ImGui.SliderInt("Target FPS", ref fps, 15, 120))
         {
-            configuration.Bitrate = bitrateMbps * 1_000_000;
+            Configuration.TargetFps = fps;
+            save = true;
+        }
+
+        int bitrate = Configuration.VideoBitrateKbps;
+        if (ImGui.SliderInt("Bitrate (kbps)", ref bitrate, 1000, 20000)) //could increase that but 20k should be plenty
+        {
+            Configuration.VideoBitrateKbps = bitrate;
+            save = true;
+        }
+
+        int resHeight = Configuration.ResolutionHeight;
+        string[] resOptions = { "Source (No Scaling)", "720p", "1080p", "1440p", "2160p (4K)" };
+        int[] resValues = { 0, 720, 1080, 1440, 2160 };
+        
+        int currentResIndex = Array.IndexOf(resValues, resHeight);
+        if (currentResIndex == -1) currentResIndex = 0;
+
+        if (ImGui.Combo("Output Resolution", ref currentResIndex, resOptions, resOptions.Length))
+        {
+            Configuration.ResolutionHeight = resValues[currentResIndex];
             save = true;
         }
         
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("Scaling preserves aspect ratio. 'Source' records exactly what you see.");
+        }
+
+        
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        bool showAdv = Configuration.ShowAdvancedSettings;
+        if (ImGui.Checkbox("Show Advanced Settings", ref showAdv))
+        {
+            Configuration.ShowAdvancedSettings = showAdv;
+            save = true;
+        }
+
+        if (Configuration.ShowAdvancedSettings)
+        {
+            ImGui.Spacing();
+            ImGui.Indent();
+
+            string[] formats = { "mp4", "mkv" };
+            int currentFormatIdx = Array.IndexOf(formats, Configuration.OutputFormat);
+            if (currentFormatIdx == -1) currentFormatIdx = 0; // fallback to mp4
+
+            if (ImGui.Combo("Container Format", ref currentFormatIdx, formats, formats.Length))
+            {
+                Configuration.OutputFormat = formats[currentFormatIdx];
+                save = true;
+            }
+            
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("MKV is highly recommended! If the game crashes during recording, an MKV file will still be playable. MP4 files will corrupt.");
+            }
+            
+            string[] encoders = { "Software (x264)", "NVIDIA (NVENC)", "AMD (AMF)", "Intel (QSV)" };
+            int currentEncoderIdx = Array.IndexOf(encoders, Configuration.VideoEncoder);
+            if (currentEncoderIdx == -1) currentEncoderIdx = 0;
+
+            if (ImGui.Combo("Video Encoder", ref currentEncoderIdx, encoders, encoders.Length))
+            {
+                Configuration.VideoEncoder = encoders[currentEncoderIdx];
+                save = true;
+            }
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("Hardware encoding offloads work to your GPU, saving CPU performance.\nIf recordings fail to start, your GPU may not support the selected encoder.");
+            }
+
+            ImGui.Unindent();
+        }
+
         if (save)
         {
-            configuration.Save();
+            Configuration.Save();
+        }
+        
+        
+        if (save)
+        {
+            Configuration.Save();
         }
     }
 }

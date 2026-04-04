@@ -69,7 +69,7 @@ public class FFmpegSetupWindow : Window
     private void StartAutomaticDownload()
     {
         _isDownloading = true;
-        _downloadMessage = "Starting download, please wait. This may take a few minutes...";
+        _downloadMessage = "Starting download, please wait. This may take a bit...";
 
         Task.Run(async () =>
         {

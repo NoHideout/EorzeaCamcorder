@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
+using Dalamud.Game.Text;
 using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
@@ -17,8 +18,6 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
     [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
-    [PluginService] internal static IClientState ClientState { get; private set; } = null!;
-    [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
     [PluginService] internal static ITextureReadbackProvider TextureReadbackProvider { get; private set; } = null!;
     [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
@@ -34,8 +33,6 @@ public sealed class Plugin : IDalamudPlugin
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
     public FFmpegSetupWindow FFmpegSetupWindow { get; init; }
-    
-    //Todo Change ipc interaction
     private IDtrBarEntry? _dtrEntry;
 
     public Plugin()
@@ -45,7 +42,7 @@ public sealed class Plugin : IDalamudPlugin
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Configuration.Initialize(PluginInterface);
 
-        Recorder = new GameRecorder();
+        Recorder = new GameRecorder(Configuration);
         IpcProvider = new IpcProvider(PluginInterface, Recorder);
 
         ConfigWindow = new ConfigWindow(this);
@@ -91,7 +88,7 @@ public sealed class Plugin : IDalamudPlugin
 
         if (File.Exists(Path.Combine(configDir, exeName)))
         {
-            GlobalFFOptions.Configure(new FFOptions(){BinaryFolder = configDir});
+            GlobalFFOptions.Configure(new FFOptions {BinaryFolder = configDir});
             Log.Debug($"FFmpeg found in {configDir}");
             return true;
         }
@@ -112,7 +109,7 @@ public sealed class Plugin : IDalamudPlugin
                 }
                 catch
                 {
-                    continue;
+                    // ignored
                 }
             }
         }
@@ -135,6 +132,7 @@ public sealed class Plugin : IDalamudPlugin
         Recorder.Dispose();
 
         CommandManager.RemoveHandler(CommandName);
+        CommandManager.RemoveHandler(SetupCommandName);
     }
     private void OnSetupCommand(string command, string args) => FFmpegSetupWindow.IsOpen = true;
     private void OnCommand(string command, string args)
@@ -162,7 +160,7 @@ public sealed class Plugin : IDalamudPlugin
 
         if (isRecording)
         {
-            _dtrEntry.Text = "Rec...";
+            _dtrEntry.Text = SeIconChar.Circle.ToIconString() + " REC";
             _dtrEntry.Tooltip = $"EorzeaCamcorder is active.\nStarted by: {Recorder.Initiator}";
         }
     }

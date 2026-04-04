@@ -8,22 +8,30 @@ namespace EorzeaCamcorder;
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 0;
+    public int Version { get; set; }
+    public string OutputDirectory { get; set; } = string.Empty;
+    public int TargetFps { get; set; } = 60;
+    public int VideoBitrateKbps { get; set; } = 8000;
+    public int ResolutionHeight { get; set; } = 0;
+    public bool ShowAdvancedSettings { get; set; } = false;
+    public string OutputFormat { get; set; } = "mp4";
+    public string VideoEncoder { get; set; } = "Software (x264)";
 
-    public string OutputPath { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "EorzeaCamcorder");
-    public int FrameRate { get; set; } = 60;
-    public int Bitrate { get; set; } = 80_000_000; // 80 Mbps default
-    
     [NonSerialized]
-    private IDalamudPluginInterface? pluginInterface;
+    private IDalamudPluginInterface? _pluginInterface;
 
     public void Initialize(IDalamudPluginInterface pluginInterface)
     {
-        this.pluginInterface = pluginInterface;
+        _pluginInterface = pluginInterface;
+        
+        if (string.IsNullOrEmpty(OutputDirectory))
+        {
+            OutputDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "EorzeaCamcorder");
+        }
     }
 
     public void Save()
     {
-        pluginInterface!.SavePluginConfig(this);
+        _pluginInterface!.SavePluginConfig(this);
     }
 }

@@ -19,8 +19,7 @@ public class MainWindow : Window, IDisposable
     {
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(300, 180),
-            MaximumSize = new Vector2(600, 350)
+            MinimumSize = new Vector2(150, 140)
         };
         this.plugin = plugin;
 
@@ -35,7 +34,7 @@ public class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
-        if (!string.IsNullOrEmpty(_errorMessage))
+        if (!string.IsNullOrWhiteSpace(_errorMessage)) 
         {
             ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DPSRed);
             ImGui.TextWrapped($"ERROR: {_errorMessage}");
@@ -51,7 +50,6 @@ public class MainWindow : Window, IDisposable
         if (plugin.Recorder.IsRecording)
         {
             ImGui.TextColored(ImGuiColors.ParsedGreen, "● RECORDING");
-            ImGui.SameLine();
         }
         else if (plugin.Recorder.IsSaving)
         {
@@ -62,7 +60,6 @@ public class MainWindow : Window, IDisposable
             ImGui.TextColored(ImGuiColors.DalamudGrey, "● IDLE");
         }
 
-        ImGui.Separator();
         ImGui.Spacing();
 
         if (plugin.Recorder.IsSaving) ImGui.BeginDisabled();
@@ -80,7 +77,7 @@ public class MainWindow : Window, IDisposable
             else
             {
                 _errorMessage = null;
-                StartRecording();
+                plugin.Recorder.StartRecording(); 
             }
         }
         ImGui.PopStyleColor();
@@ -88,15 +85,16 @@ public class MainWindow : Window, IDisposable
         if (plugin.Recorder.IsSaving) ImGui.EndDisabled();
 
         ImGui.Spacing();
-
+        ImGui.Separator();
+        ImGui.Spacing();
         if (ImGui.Button("Open Folder", new Vector2(ImGui.GetContentRegionAvail().X / 2 - 5, 0)))
         {
             try
             {
-                Directory.CreateDirectory(plugin.Configuration.OutputPath);
+                Directory.CreateDirectory(plugin.Configuration.OutputDirectory);
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = plugin.Configuration.OutputPath,
+                    FileName = plugin.Configuration.OutputDirectory,
                     UseShellExecute = true,
                     Verb = "open"
                 });
@@ -112,42 +110,6 @@ public class MainWindow : Window, IDisposable
         if (ImGui.Button("Settings", new Vector2(ImGui.GetContentRegionAvail().X, 0)))
         {
             plugin.ToggleConfigUi();
-        }
-    }
-
-    private void StartRecording()
-    {
-        try
-        {
-            var config = plugin.Configuration;
-
-            if (string.IsNullOrWhiteSpace(config.OutputPath))
-            {
-                _errorMessage = "Output path is empty! Check Settings.";
-                return;
-            }
-
-            Directory.CreateDirectory(config.OutputPath);
-
-            string fileName = $"XIV_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4";
-            string fullPath = Path.Combine(config.OutputPath, fileName);
-
-            try
-            {
-                using (File.Create(fullPath + ".test", 1, FileOptions.DeleteOnClose)) { }
-            }
-            catch
-            {
-                _errorMessage = "Cannot write to output folder. Check permissions.";
-                return;
-            }
-
-            plugin.Recorder.StartRecording(fullPath, config.Bitrate, config.FrameRate);
-        }
-        catch (Exception ex)
-        {
-            Plugin.Log.Error(ex, "Failed to start recording");
-            _errorMessage = $"Start failed: {ex.Message}";
         }
     }
 }
