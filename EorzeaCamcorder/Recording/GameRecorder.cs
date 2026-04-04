@@ -103,13 +103,11 @@ public class GameRecorder : IDisposable
         }
     }
 
-    private void OnAudioDataReceived(IntPtr data, int size)
+    private void OnAudioDataReceived(byte[] data, int size)
     {
-        if (!IsRecording || !_audioCaptureStarted || _audioQueue == null) return;
-
-        byte[] safeData = new byte[size];
-        Marshal.Copy(data, safeData, 0, size);
-        _audioQueue.Add(safeData);
+        if (!IsRecording || !_audioCaptureStarted || _audioQueue == null)
+            return;
+        _audioQueue.Add(data);
     }
 
     public async Task StopRecording()

@@ -103,7 +103,7 @@ public sealed class Plugin : IDalamudPlugin
                 {
                     if (File.Exists(Path.Combine(path, exeName)))
                     {
-                        Log.Debug($"FFmpeg found in {path + exeName}");
+                        Log.Debug($"FFmpeg found in {path}");
                         return true;
                     }
                 }
