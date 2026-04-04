@@ -22,8 +22,8 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static ITextureReadbackProvider TextureReadbackProvider { get; private set; } = null!;
     [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
 
-    private const string CommandName = "/rec";
-    private const string SetupCommandName = "/recsetuptest";
+    private const string CommandName = "/ecam";
+    //private const string SetupCommandName = "/ecamsetup";
 
     public Configuration Configuration { get; init; }
     public GameRecorder Recorder { get; init; }
@@ -62,11 +62,12 @@ public sealed class Plugin : IDalamudPlugin
         {
             HelpMessage = "Opens the EorzeaCamcorder main window"
         });
+        /*
         CommandManager.AddHandler(SetupCommandName, new CommandInfo(OnSetupCommand)
         {
             HelpMessage = "Debug: Opens the FFmpeg Setup Window"
         });
-
+        */
         _dtrEntry = DtrBar.Get("EorzeaCamcorder");
         if (_dtrEntry != null)
         {
@@ -132,9 +133,10 @@ public sealed class Plugin : IDalamudPlugin
         Recorder.Dispose();
 
         CommandManager.RemoveHandler(CommandName);
-        CommandManager.RemoveHandler(SetupCommandName);
+        //CommandManager.RemoveHandler(SetupCommandName);
     }
-    private void OnSetupCommand(string command, string args) => FFmpegSetupWindow.IsOpen = true;
+    //private void OnSetupCommand(string command, string args) => FFmpegSetupWindow.IsOpen = true;
+    
     private void OnCommand(string command, string args)
     {
         MainWindow.Toggle();
