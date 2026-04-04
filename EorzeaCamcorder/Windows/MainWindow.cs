@@ -4,7 +4,6 @@ using System.IO;
 using System.Numerics;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
-using Dalamud.Interface;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
 
@@ -36,24 +35,11 @@ public class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
-        DrawHeader();
         DrawError();
         DrawStatus();
         DrawRecordingControls();
         DrawReplayControls();
         DrawFooter();
-    }
-
-    private void DrawHeader()
-    {
-        ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.Text("\uf03d"); // cute camera icon
-        ImGui.PopFont();
-
-        ImGui.SameLine();
-        ImGui.TextColored(ImGuiColors.ParsedGold, "Eorzea Camcorder");
-
-        ImGui.Separator();
     }
 
     private void DrawError()

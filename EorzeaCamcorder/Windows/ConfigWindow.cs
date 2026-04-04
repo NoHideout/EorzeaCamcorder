@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
 
 namespace EorzeaCamcorder.Windows;
@@ -8,6 +9,7 @@ namespace EorzeaCamcorder.Windows;
 public class ConfigWindow : Window, IDisposable
 {
     private Configuration Configuration;
+    private readonly Plugin _plugin;
 
     public ConfigWindow(Plugin plugin) : base("EorzeaCamcorder Configuration")
     {
@@ -16,6 +18,7 @@ public class ConfigWindow : Window, IDisposable
             MinimumSize = new Vector2(450, 350)
         };
         Configuration = plugin.Configuration;
+        _plugin = plugin;
     }
 
     public void Dispose() { }
@@ -111,6 +114,26 @@ public class ConfigWindow : Window, IDisposable
             if (ImGui.IsItemHovered())
             {
                 ImGui.SetTooltip("How many seconds of gameplay the Buffer mode will keep in RAM.");
+            }
+            
+            ImGui.Spacing();
+        }
+
+        if (ImGui.CollapsingHeader("Maintenance", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            ImGui.TextWrapped("If the game crashes or closes unexpectedly while recording, raw temporary files (.ts) may be left in your output folder.");
+            ImGui.Spacing();
+
+            ImGui.PushStyleColor(ImGuiCol.Button, ImGuiColors.ParsedOrange);
+            if (ImGui.Button("Scan & Recover Crashed Recordings", new Vector2(ImGui.GetContentRegionAvail().X, 30)))
+            {
+                _plugin.Recorder.RecoverOrphanedFiles();
+            }
+            ImGui.PopStyleColor();
+
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("This will scan your output directory and safely remux any orphaned .ts files into your chosen container format.");
             }
             
             ImGui.Spacing();

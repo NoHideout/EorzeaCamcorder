@@ -283,7 +283,6 @@ public class GameRecorder : IDisposable
         catch { }
     }
     
-    //Todo figure out how to properly implement
     public void RecoverOrphanedFiles()
     {
         if (!Directory.Exists(_config.OutputDirectory)) return;

@@ -13,7 +13,6 @@ public class Configuration : IPluginConfiguration
     public int TargetFps { get; set; } = 60;
     public int VideoBitrateKbps { get; set; } = 8000;
     public int ResolutionHeight { get; set; } = 0;
-    public bool ShowAdvancedSettings { get; set; } = false;
     public string OutputFormat { get; set; } = "mp4";
     public string VideoEncoder { get; set; } = "Software (x264)";
     
