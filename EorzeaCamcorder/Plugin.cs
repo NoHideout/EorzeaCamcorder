@@ -38,7 +38,8 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin()
     {
         PluginInterface.UiBuilder.DisableGposeUiHide =true;
-        
+        PluginInterface.UiBuilder.DisableCutsceneUiHide = true; // enables plugin to record during cutscene
+
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Configuration.Initialize(PluginInterface);
 
