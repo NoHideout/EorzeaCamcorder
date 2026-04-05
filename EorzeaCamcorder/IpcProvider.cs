@@ -7,9 +7,9 @@ namespace EorzeaCamcorder;
 
 public class IpcProvider : IDisposable
 {
-    private readonly GameRecorder _recorder;
-    private readonly Configuration _config;
-
+    private IDalamudPluginInterface Pi => Service.PluginInterface;
+    private GameRecorder Recorder => Service.Recorder;
+    
     public const string ApiVersion = "EorzeaCamcorder.ApiVersion";
     public const string StartRecording = "EorzeaCamcorder.StartRecording";
     public const string StopRecording = "EorzeaCamcorder.StopRecording";
@@ -28,22 +28,19 @@ public class IpcProvider : IDisposable
     private readonly ICallGateProvider<string> _stopReplay;
     private readonly ICallGateProvider<bool> _isReplayBufferRunning;
 
-    public IpcProvider(IDalamudPluginInterface pi, GameRecorder recorder, Configuration config)
+    public IpcProvider()
     {
-        _recorder = recorder;
-        _config = config;
-
-        _apiVersion = pi.GetIpcProvider<(int, int)>(ApiVersion);
-        _startRecording = pi.GetIpcProvider<string, object>(StartRecording);
-        _stopRecording = pi.GetIpcProvider<object>(StopRecording);
-        _isRecording = pi.GetIpcProvider<bool>(IsRecording);
-        _saveReplay = pi.GetIpcProvider<string, object>(SaveReplay);
-        _startReplay = pi.GetIpcProvider<string, object>(StartReplay);
-        _stopReplay = pi.GetIpcProvider<string>(StopReplay);
-        _isReplayBufferRunning = pi.GetIpcProvider<bool>(IsReplayBufferRunning);
+        _apiVersion = Pi.GetIpcProvider<(int, int)>(ApiVersion);
+        _startRecording = Pi.GetIpcProvider<string, object>(StartRecording);
+        _stopRecording = Pi.GetIpcProvider<object>(StopRecording);
+        _isRecording = Pi.GetIpcProvider<bool>(IsRecording);
+        _saveReplay = Pi.GetIpcProvider<string, object>(SaveReplay);
+        _startReplay = Pi.GetIpcProvider<string, object>(StartReplay);
+        _stopReplay = Pi.GetIpcProvider<string>(StopReplay);
+        _isReplayBufferRunning = Pi.GetIpcProvider<bool>(IsReplayBufferRunning);
     }
 
-    private bool CanIpc() => _config.AllowIpc;
+    private bool CanIpc() => Service.Config.AllowIpc;
 
     private (int, int) HandleApiVersion() => (1, 2);
 
@@ -54,22 +51,22 @@ public class IpcProvider : IDisposable
         var context = _startRecording.GetContext();
         string initiator = context?.SourcePlugin?.Name ?? "Unknown Plugin";
 
-        _recorder.StartRecording(customPath, initiator);
+        Recorder.StartRecording(customPath, initiator);
     }
 
     private void HandleStopRecording()
     {
         if (!CanIpc()) return;
 
-        if (_recorder.IsRecording)
-            _ = _recorder.StopRecording();
+        if (Recorder.IsRecording)
+            _ = Recorder.StopRecording();
     }
 
     private void HandleSaveReplay(string customPath)
     {
         if (!CanIpc()) return;
 
-        _recorder.SaveReplayBuffer(customPath);
+        Recorder.SaveReplayBuffer(customPath);
     }
 
     private void HandleStartReplay(string _)
@@ -79,19 +76,19 @@ public class IpcProvider : IDisposable
         var context = _startReplay.GetContext();
         string initiator = context?.SourcePlugin?.Name ?? "Unknown Plugin";
 
-        _recorder.StartReplayBuffer(initiator);
+        Recorder.StartReplayBuffer(initiator);
     }
 
     private void HandleStopReplay()
     {
         if (!CanIpc()) return;
 
-        _ = _recorder.StopReplayBuffer();
+        _ = Recorder.StopReplayBuffer();
     }
 
-    private bool HandleIsRecording() => _recorder.IsRecording;
+    private bool HandleIsRecording() => Recorder.IsRecording;
 
-    private bool HandleIsReplayBufferRunning() => _recorder.IsReplayBufferRunning;
+    private bool HandleIsReplayBufferRunning() => Recorder.IsReplayBufferRunning;
 
     public void Register()
     {

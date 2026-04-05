@@ -4,7 +4,6 @@ using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
 using Dalamud.Game.Text;
 using Dalamud.Interface.Windowing;
-using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using EorzeaCamcorder.Recording;
@@ -15,56 +14,50 @@ namespace EorzeaCamcorder;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    [PluginService] internal static IChatGui Chat { get; private set; } = null!;
-    [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
-    [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
-    [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
-    [PluginService] internal static IPluginLog Log { get; private set; } = null!;
-    [PluginService] internal static ITextureReadbackProvider TextureReadbackProvider { get; private set; } = null!;
-    [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
-    
+    private IDalamudPluginInterface DalamudInterface => Service.PluginInterface;
+    private ICommandManager CommandManager => Service.CommandManager;
+    private IDtrBar DtrBar => Service.DtrBar;
+    private IPluginLog Log => Service.Log;
+
+    private Configuration Config => Service.Config;
+    private GameRecorder Recorder => Service.Recorder;
+    private IpcProvider IpcProvider => Service.IpcProvider;
+    private ConfigWindow ConfigWindow => Service.ConfigWindow;
+    private MainWindow MainWindow => Service.MainWindow;
+    private FFmpegSetupWindow FFmpegSetupWindow => Service.FFmpegSetupWindow;
+
     private readonly CommandHandler CommandHandler;
     private const string CommandName = "/ecam";
-    public Configuration Configuration { get; init; }
-    public GameRecorder Recorder { get; init; }
-    public IpcProvider IpcProvider { get; init; }
-
+    
     public readonly WindowSystem WindowSystem = new("EorzeaCamcorder");
-    private ConfigWindow ConfigWindow { get; init; }
-    private MainWindow MainWindow { get; init; }
-    public FFmpegSetupWindow FFmpegSetupWindow { get; init; }
+   
     private IDtrBarEntry? _dtrEntry;
 
-    public Plugin()
+    public Plugin(IDalamudPluginInterface pluginInterface)
     {
-        PluginInterface.UiBuilder.DisableGposeUiHide =true;
-        PluginInterface.UiBuilder.DisableCutsceneUiHide = true; // enables plugin to record during cutscene
+        pluginInterface.Create<Service>();
 
-        Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
-        Configuration.Initialize(PluginInterface);
+        DalamudInterface.UiBuilder.DisableGposeUiHide = true;
+        DalamudInterface.UiBuilder.DisableCutsceneUiHide = true; // enables plugin to record during cutscene
 
-        Recorder = new GameRecorder(Configuration);
-        IpcProvider = new IpcProvider(PluginInterface, Recorder, Configuration);
+        Service.Config = DalamudInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        Config.Initialize(DalamudInterface);
+
+        Service.Recorder = new GameRecorder(Config);
+        Service.IpcProvider = new IpcProvider();
         IpcProvider.Register();
 
-        ConfigWindow = new ConfigWindow(this);
-        MainWindow = new MainWindow(this);
-        FFmpegSetupWindow = new FFmpegSetupWindow();
+        Service.ConfigWindow = new ConfigWindow();
+        Service.MainWindow = new MainWindow();
+        Service.FFmpegSetupWindow = new FFmpegSetupWindow();
         
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(MainWindow);
         WindowSystem.AddWindow(FFmpegSetupWindow);
         
-        CommandHandler = new CommandHandler(
-            Recorder,
-            ConfigWindow,
-            MainWindow,
-            FFmpegSetupWindow,
-            Log,
-            Chat
-            );
+        CommandHandler = new CommandHandler();
         
-        if (!checkFFmpeg())
+        if (!CheckFFmpeg())
         {
             FFmpegSetupWindow.IsOpen = true;
         }
@@ -82,20 +75,19 @@ public sealed class Plugin : IDalamudPlugin
             _dtrEntry.OnClick = _ => ToggleMainUi();
         }
 
-
-        PluginInterface.UiBuilder.Draw += Draw;
-        PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
-        PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
+        DalamudInterface.UiBuilder.Draw += Draw;
+        DalamudInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
+        DalamudInterface.UiBuilder.OpenMainUi += ToggleMainUi;
     }
 
-    private bool checkFFmpeg()
+    private bool CheckFFmpeg()
     {
         var exeName = "ffmpeg.exe";
-        var configDir = PluginInterface.ConfigDirectory.FullName;
+        var configDir = DalamudInterface.ConfigDirectory.FullName;
 
         if (File.Exists(Path.Combine(configDir, exeName)))
         {
-            GlobalFFOptions.Configure(new FFOptions {BinaryFolder = configDir});
+            GlobalFFOptions.Configure(new FFOptions { BinaryFolder = configDir });
             Log.Debug($"FFmpeg found in {configDir}");
             return true;
         }
@@ -125,9 +117,9 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
-        PluginInterface.UiBuilder.Draw -= Draw;
-        PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
-        PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
+        DalamudInterface.UiBuilder.Draw -= Draw;
+        DalamudInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
+        DalamudInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
 
         WindowSystem.RemoveAllWindows();
 

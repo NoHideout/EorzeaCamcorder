@@ -8,14 +8,19 @@ using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Textures;
 using Dalamud.Interface.Textures.TextureWraps;
+using Dalamud.Plugin.Services;
 
 namespace EorzeaCamcorder.Recording;
 
 public class GameRecorder : IDisposable
 {
+    private IPluginLog Log => Service.Log;
+    private ITextureReadbackProvider TextureReadback => Service.TextureReadbackProvider;
+    private ITextureProvider TextureProvider => Service.TextureProvider;
+    
+    
     private readonly Configuration _config;
     private int _targetFps = 60;
-    private long _ticksPerFrame = 166666;
 
     public IDalamudTextureWrap? PreviewTexture { get; private set; }
     
@@ -56,7 +61,6 @@ public class GameRecorder : IDisposable
         try
         {
             _targetFps = _config.TargetFps;
-            _ticksPerFrame = 10_000_000 / _targetFps;
             IsEngineRunning = true;
             Initiator = initiator;
 
@@ -81,7 +85,7 @@ public class GameRecorder : IDisposable
         }
         catch (Exception ex)
         {
-            Plugin.Log.Error(ex, "Failed to start capture engine.");
+            Log.Error(ex, "Failed to start capture engine.");
             IsEngineRunning = false;
             CleanupResources();
         }
@@ -116,7 +120,7 @@ public class GameRecorder : IDisposable
         _broadcastStream.FileStream = _activeFileStream;
         
         IsRecording = true;
-        Plugin.Log.Information($"Started Recording to: {_currentRecordingFinalPath}");
+        Log.Information($"Started Recording to: {_currentRecordingFinalPath}");
         EnsureEngineRunning(initiator);
     }
 
@@ -135,7 +139,7 @@ public class GameRecorder : IDisposable
         await CheckEngineStop();
 
         Interlocked.Increment(ref _savingTasks);
-        Task.Run(async () => {
+        _ = Task.Run(async () => {
             try { await FFmpegMuxer.RemuxToFinalFormatAsync(tempPath, finalPath, true); }
             finally { Interlocked.Decrement(ref _savingTasks); }
         });
@@ -151,7 +155,7 @@ public class GameRecorder : IDisposable
         _broadcastStream.RingBuffer = _ringBuffer;
         IsReplayBufferRunning = true;
         
-        Plugin.Log.Information($"Replay Buffer ({_config.ReplayBufferSeconds}s) activated in RAM.");
+        Log.Information($"Replay Buffer ({_config.ReplayBufferSeconds}s) activated in RAM.");
         EnsureEngineRunning(initiator);
     }
 
@@ -163,7 +167,7 @@ public class GameRecorder : IDisposable
         _broadcastStream.RingBuffer = null;
         _ringBuffer = null;
 
-        Plugin.Log.Information("Replay Buffer deactivated.");
+        Log.Information("Replay Buffer deactivated.");
         await CheckEngineStop();
     }
 
@@ -226,7 +230,7 @@ public class GameRecorder : IDisposable
 
         try
         {
-            var result = await Plugin.TextureReadbackProvider.GetRawImageAsync(textureRef, leaveWrapOpen: true);
+            var result = await TextureReadback.GetRawImageAsync(textureRef, leaveWrapOpen: true);
 
             if (queueRef.IsAddingCompleted) return;
             if (result.RawData == null) return;
@@ -270,7 +274,7 @@ public class GameRecorder : IDisposable
             }
             catch (InvalidOperationException) { System.Buffers.ArrayPool<byte>.Shared.Return(rawBuffer); }
         }
-        catch (Exception ex) { Plugin.Log.Error($"Frame capture error: {ex.Message}"); }
+        catch (Exception ex) { Log.Error($"Frame capture error: {ex.Message}"); }
     }
 
     private async Task CreateTextureWrap(CancellationToken token, uint viewportId)
@@ -278,7 +282,7 @@ public class GameRecorder : IDisposable
         try
         {
             var textureArguments = new ImGuiViewportTextureArgs() { AutoUpdate = true, KeepTransparency = false, TakeBeforeImGuiRender = true, ViewportId = viewportId };
-            PreviewTexture = await Plugin.TextureProvider.CreateFromImGuiViewportAsync(textureArguments, cancellationToken: token);
+            PreviewTexture = await TextureProvider.CreateFromImGuiViewportAsync(textureArguments, cancellationToken: token);
         }
         catch { }
     }
@@ -297,7 +301,7 @@ public class GameRecorder : IDisposable
                     using (File.Open(tsFile, FileMode.Open, FileAccess.Read, FileShare.None)) { }
                     string finalPath = tsFile.Substring(0, tsFile.Length - 3);
 
-                    Plugin.Log.Information($"Recovering orphaned file: {tsFile}");
+                    Log.Information($"Recovering orphaned file: {tsFile}");
                     
                     Interlocked.Increment(ref _savingTasks);
                     try 
@@ -312,7 +316,7 @@ public class GameRecorder : IDisposable
                 catch (IOException) { }
                 catch (Exception ex)
                 {
-                    Plugin.Log.Error($"Failed to recover {tsFile}: {ex.Message}");
+                    Log.Error($"Failed to recover {tsFile}: {ex.Message}");
                 }
             }
         });

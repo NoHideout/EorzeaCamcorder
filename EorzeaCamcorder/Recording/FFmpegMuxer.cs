@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Dalamud.Plugin.Services;
 using FFMpegCore;
 using FFMpegCore.Enums;
 using FFMpegCore.Pipes;
@@ -11,6 +12,8 @@ namespace EorzeaCamcorder.Recording;
 
 public static class FFmpegMuxer
 {
+    private static IPluginLog Log => Service.Log;
+    
     public static async Task StartCaptureEngineAsync(
         CancellationToken token, 
         BlockingCollection<CapturedFrame> videoQueue, 
@@ -47,7 +50,7 @@ public static class FFmpegMuxer
                 _ => "libx264"
             };
 
-            Plugin.Log.Information($"Starting Background FFmpeg Engine... Res: {width}x{height}, Encoder: {targetCodec}");
+            Log.Information($"Starting Background FFmpeg Engine... Res: {width}x{height}, Encoder: {targetCodec}");
 
             await FFMpegArguments
                   .FromPipeInput(videoPipeSource)
@@ -65,13 +68,13 @@ public static class FFmpegMuxer
                       if (config.ResolutionHeight > 0)
                           options.WithCustomArgument($"-vf scale=-2:{config.ResolutionHeight}");
                   })
-                  .NotifyOnError(msg => Plugin.Log.Debug($"[FFmpeg Engine] {msg}"))
+                  .NotifyOnError(msg => Log.Debug($"[FFmpeg Engine] {msg}"))
                   .ProcessAsynchronously();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            Plugin.Log.Error($"Capture Engine Error: {ex.Message}");
+            Log.Error($"Capture Engine Error: {ex.Message}");
             onRecordingError?.Invoke($"Engine failed: {ex.Message}");
         }
         finally { audioRecorder.Stop(); }
@@ -81,7 +84,7 @@ public static class FFmpegMuxer
     {
         try
         {
-            Plugin.Log.Information($"Remuxing stream to: {finalFilePath}");
+            Log.Information($"Remuxing stream to: {finalFilePath}");
 
             await FFMpegArguments
                 .FromFileInput(inputTsFile)
@@ -90,11 +93,11 @@ public static class FFmpegMuxer
                     .WithFastStart())
                 .ProcessAsynchronously();
 
-            Plugin.Log.Information($"Successfully saved: {finalFilePath}");
+            Log.Information($"Successfully saved: {finalFilePath}");
         }
         catch (Exception ex)
         {
-            Plugin.Log.Error($"Failed to process video: {ex.Message}");
+            Log.Error($"Failed to process video: {ex.Message}");
         }
         finally
         {

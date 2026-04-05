@@ -6,25 +6,26 @@ using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
+using EorzeaCamcorder.Recording;
 
 namespace EorzeaCamcorder.Windows;
 
 public class MainWindow : Window, IDisposable
 {
-    private readonly Plugin plugin;
+    private GameRecorder Recorder => Service.Recorder;
+    
     private string? _errorMessage;
     private DateTime _errorTime;
 
-    public MainWindow(Plugin plugin) : base("EorzeaCamcorder", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
+    public MainWindow() : base("EorzeaCamcorder", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(260, 200),
             MaximumSize = new Vector2(600, 600)
         };
-        this.plugin = plugin;
 
-        this.plugin.Recorder.OnRecordingError += (msg) =>
+        Recorder.OnRecordingError += (msg) =>
         {
             _errorMessage = msg;
             _errorTime = DateTime.Now;
@@ -63,22 +64,22 @@ public class MainWindow : Window, IDisposable
         string statusText;
         Vector4 color;
 
-        if (plugin.Recorder.IsRecording && plugin.Recorder.IsReplayBufferRunning)
+        if (Recorder.IsRecording && Recorder.IsReplayBufferRunning)
         {
             statusText = "● Recording + Replay Buffer";
             color = ImGuiColors.ParsedPink;
         }
-        else if (plugin.Recorder.IsRecording)
+        else if (Recorder.IsRecording)
         {
             statusText = "● Recording";
             color = ImGuiColors.HealerGreen;
         }
-        else if (plugin.Recorder.IsReplayBufferRunning)
+        else if (Recorder.IsReplayBufferRunning)
         {
             statusText = "● Replay Buffer Active";
             color = ImGuiColors.ParsedBlue;
         }
-        else if (plugin.Recorder.IsSaving)
+        else if (Recorder.IsSaving)
         {
             statusText = "● Saving...";
             color = ImGuiColors.ParsedOrange;
@@ -95,16 +96,16 @@ public class MainWindow : Window, IDisposable
 
     private void DrawRecordingControls()
     {
-        bool isRecording = plugin.Recorder.IsRecording;
+        bool isRecording = Recorder.IsRecording;
         var btnColor = isRecording ? ImGuiColors.DPSRed : ImGuiColors.HealerGreen;
 
         ImGui.PushStyleColor(ImGuiCol.Button, btnColor);
         if (ImGui.Button(isRecording ? "Stop Recording" : "Start Recording", new Vector2(-1, 40)))
         {
             if (isRecording)
-                Task.Run(async () => await plugin.Recorder.StopRecording());
+                Task.Run(async () => await Recorder.StopRecording());
             else
-                plugin.Recorder.StartRecording();
+                Recorder.StartRecording();
         }
         ImGui.PopStyleColor();
 
@@ -116,17 +117,17 @@ public class MainWindow : Window, IDisposable
         ImGui.Separator();
         ImGui.Text("Replay Buffer");
 
-        bool isReplay = plugin.Recorder.IsReplayBufferRunning;
+        bool isReplay = Recorder.IsReplayBufferRunning;
         if (ImGui.Checkbox("Enable Replay Buffer", ref isReplay))
         {
-            if (isReplay) plugin.Recorder.StartReplayBuffer();
-            else Task.Run(async () => await plugin.Recorder.StopReplayBuffer());
+            if (isReplay) Recorder.StartReplayBuffer();
+            else Task.Run(async () => await Recorder.StopReplayBuffer());
         }
 
         ImGui.Spacing();
 
-        bool saving = plugin.Recorder.IsSaving;
-        bool replayActive = plugin.Recorder.IsReplayBufferRunning;
+        bool saving = Recorder.IsSaving;
+        bool replayActive = Recorder.IsReplayBufferRunning;
 
         if (!replayActive || saving)
             ImGui.BeginDisabled();
@@ -134,7 +135,7 @@ public class MainWindow : Window, IDisposable
         ImGui.PushStyleColor(ImGuiCol.Button, ImGuiColors.ParsedBlue);
         if (ImGui.Button(saving ? "Saving Replay..." : "Save Replay", new Vector2(-1, 35)))
         {
-            plugin.Recorder.SaveReplayBuffer();
+            Recorder.SaveReplayBuffer();
         }
         ImGui.PopStyleColor();
 
@@ -154,10 +155,10 @@ public class MainWindow : Window, IDisposable
         {
             try
             {
-                Directory.CreateDirectory(plugin.Configuration.OutputDirectory);
+                Directory.CreateDirectory(Service.Config.OutputDirectory);
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = plugin.Configuration.OutputDirectory,
+                    FileName = Service.Config.OutputDirectory,
                     UseShellExecute = true
                 });
             }
@@ -171,7 +172,7 @@ public class MainWindow : Window, IDisposable
 
         if (ImGui.Button("Settings", new Vector2(half, 30)))
         {
-            plugin.ToggleConfigUi();
+            Service.ConfigWindow.Toggle();
         }
     }
 }

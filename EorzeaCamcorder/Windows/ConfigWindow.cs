@@ -1,24 +1,20 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
-using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
 
 namespace EorzeaCamcorder.Windows;
 
 public class ConfigWindow : Window, IDisposable
 {
-    private Configuration Configuration;
-    private readonly Plugin _plugin;
-
-    public ConfigWindow(Plugin plugin) : base("EorzeaCamcorder Configuration")
+    private Configuration config = Service.Config;
+    
+    public ConfigWindow() : base("EorzeaCamcorder Configuration")
     {
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(450, 350)
         };
-        Configuration = plugin.Configuration;
-        _plugin = plugin;
     }
 
     public void Dispose() { }
@@ -29,10 +25,10 @@ public class ConfigWindow : Window, IDisposable
 
         if (ImGui.CollapsingHeader("General Settings", ImGuiTreeNodeFlags.DefaultOpen))
         {
-            bool allowIpc = Configuration.AllowIpc;
+            bool allowIpc = config.AllowIpc;
             if (ImGui.Checkbox("Enable IPC.", ref allowIpc))
             {
-                Configuration.AllowIpc = allowIpc;
+                config.AllowIpc = allowIpc;
                 save = true;
             }
             if (ImGui.IsItemHovered())
@@ -40,20 +36,20 @@ public class ConfigWindow : Window, IDisposable
                 ImGui.SetTooltip("This setting allows other plugins to start, stop and save recordings/replays.");
             }
             
-            string outDir = Configuration.OutputDirectory;
+            string outDir = config.OutputDirectory;
             if (ImGui.InputText("Output Directory", ref outDir, 512))
             {
-                Configuration.OutputDirectory = outDir;
+                config.OutputDirectory = outDir;
                 save = true;
             }
 
             string[] formats = { "mp4", "mkv" };
-            int currentFormatIdx = Array.IndexOf(formats, Configuration.OutputFormat);
+            int currentFormatIdx = Array.IndexOf(formats, config.OutputFormat);
             if (currentFormatIdx == -1) currentFormatIdx = 0; // fallback to mp4
 
             if (ImGui.Combo("Container Format", ref currentFormatIdx, formats, formats.Length))
             {
-                Configuration.OutputFormat = formats[currentFormatIdx];
+                config.OutputFormat = formats[currentFormatIdx];
                 save = true;
             }
             if (ImGui.IsItemHovered())
@@ -66,7 +62,7 @@ public class ConfigWindow : Window, IDisposable
 
         if (ImGui.CollapsingHeader("Video & Encoding", ImGuiTreeNodeFlags.DefaultOpen))
         {
-            int resHeight = Configuration.ResolutionHeight;
+            int resHeight = config.ResolutionHeight;
             string[] resOptions = { "Source (No Scaling)", "720p", "1080p", "1440p", "2160p (4K)" };
             int[] resValues = { 0, 720, 1080, 1440, 2160 };
             
@@ -75,7 +71,7 @@ public class ConfigWindow : Window, IDisposable
 
             if (ImGui.Combo("Output Resolution", ref currentResIndex, resOptions, resOptions.Length))
             {
-                Configuration.ResolutionHeight = resValues[currentResIndex];
+                config.ResolutionHeight = resValues[currentResIndex];
                 save = true;
             }
             if (ImGui.IsItemHovered())
@@ -83,27 +79,27 @@ public class ConfigWindow : Window, IDisposable
                 ImGui.SetTooltip("Scaling preserves aspect ratio. 'Source' records exactly what you see.");
             }
 
-            int fps = Configuration.TargetFps;
+            int fps = config.TargetFps;
             if (ImGui.SliderInt("Target FPS", ref fps, 15, 120))
             {
-                Configuration.TargetFps = fps;
+                config.TargetFps = fps;
                 save = true;
             }
 
-            int bitrate = Configuration.VideoBitrateKbps;
+            int bitrate = config.VideoBitrateKbps;
             if (ImGui.SliderInt("Bitrate (kbps)", ref bitrate, 1000, 20000))
             {
-                Configuration.VideoBitrateKbps = bitrate;
+                config.VideoBitrateKbps = bitrate;
                 save = true;
             }
 
             string[] encoders = { "Software (x264)", "NVIDIA (NVENC)", "AMD (AMF)", "Intel (QSV)" };
-            int currentEncoderIdx = Array.IndexOf(encoders, Configuration.VideoEncoder);
+            int currentEncoderIdx = Array.IndexOf(encoders, config.VideoEncoder);
             if (currentEncoderIdx == -1) currentEncoderIdx = 0;
 
             if (ImGui.Combo("Video Encoder", ref currentEncoderIdx, encoders, encoders.Length))
             {
-                Configuration.VideoEncoder = encoders[currentEncoderIdx];
+                config.VideoEncoder = encoders[currentEncoderIdx];
                 save = true;
             }
             if (ImGui.IsItemHovered())
@@ -116,10 +112,10 @@ public class ConfigWindow : Window, IDisposable
 
         if (ImGui.CollapsingHeader("Replay Buffer", ImGuiTreeNodeFlags.DefaultOpen))
         {
-            int replaySec = Configuration.ReplayBufferSeconds;
+            int replaySec = config.ReplayBufferSeconds;
             if (ImGui.SliderInt("Buffer Length (sec)", ref replaySec, 5, 60))
             {
-                Configuration.ReplayBufferSeconds = replaySec;
+                config.ReplayBufferSeconds = replaySec;
                 save = true;
             }
             if (ImGui.IsItemHovered())
@@ -135,7 +131,7 @@ public class ConfigWindow : Window, IDisposable
 
             if (ImGui.Button("Scan & Recover Crashed Recordings", new Vector2(ImGui.GetContentRegionAvail().X, 30)))
             {
-                _plugin.Recorder.RecoverOrphanedFiles();
+                Service.Recorder.RecoverOrphanedFiles();
             }
 
             if (ImGui.IsItemHovered())
@@ -148,7 +144,7 @@ public class ConfigWindow : Window, IDisposable
 
         if (save)
         {
-            Configuration.Save();
+            config.Save();
         }
     }
 }

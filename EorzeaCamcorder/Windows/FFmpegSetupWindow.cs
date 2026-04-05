@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
+using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
 using FFMpegCore;
 using FFMpegCore.Extensions.Downloader;
     
@@ -12,6 +14,9 @@ namespace EorzeaCamcorder.Windows;
 
 public class FFmpegSetupWindow : Window
 {
+    private static IPluginLog Log => Service.Log;
+    private IDalamudPluginInterface  Pi => Service.PluginInterface;
+    
     private bool _isDownloading = false;
     private string _downloadMessage = "";
 
@@ -40,7 +45,7 @@ public class FFmpegSetupWindow : Window
         
         ImGui.TextColored(ImGuiColors.ParsedGreen, "Option 1: Automatic Installation (Recommended)");
         ImGui.Indent();
-        ImGui.TextWrapped("Automatically download FFmpeg binaries specifically for this plugin.");
+        ImGui.TextWrapped("Automatically download FFmpeg binaries specifically for this Service.");
         ImGui.Spacing();
 
         float indentSpace = ImGui.GetStyle().IndentSpacing;
@@ -73,7 +78,7 @@ public class FFmpegSetupWindow : Window
         if (ImGui.Button("Open Download Page", new Vector2(halfWidth, 0)))
         {
             try { Process.Start(new ProcessStartInfo { FileName = "https://ffmpeg.org/download.html", UseShellExecute = true }); }
-            catch (Exception ex) { Plugin.Log.Error($"Could not open browser: {ex.Message}"); }
+            catch (Exception ex) { Log.Error($"Could not open browser: {ex.Message}"); }
         }
 
         ImGui.SameLine();
@@ -84,12 +89,12 @@ public class FFmpegSetupWindow : Window
             { 
                 Process.Start(new ProcessStartInfo 
                 { 
-                    FileName = Plugin.PluginInterface.ConfigDirectory.FullName, 
+                    FileName = Pi.ConfigDirectory.FullName, 
                     UseShellExecute = true, 
                     Verb = "open" 
                 }); 
             }
-            catch (Exception ex) { Plugin.Log.Error($"Could not open config directory: {ex.Message}"); }
+            catch (Exception ex) { Log.Error($"Could not open config directory: {ex.Message}"); }
         }
 
         ImGui.Spacing();
@@ -113,7 +118,7 @@ public class FFmpegSetupWindow : Window
         if (ImGui.Button("Read FFmpeg License"))
         {
             try { Process.Start(new ProcessStartInfo { FileName = "https://ffmpeg.org/legal.html", UseShellExecute = true }); }
-            catch (Exception ex) { Plugin.Log.Error($"Could not open browser: {ex.Message}"); }
+            catch (Exception ex) { Log.Error($"Could not open browser: {ex.Message}"); }
         }
     }
 
@@ -126,13 +131,13 @@ public class FFmpegSetupWindow : Window
         {
             try
             {
-                var configDir = Plugin.PluginInterface.ConfigDirectory.FullName;
+                var configDir = Pi.ConfigDirectory.FullName;
                 GlobalFFOptions.Configure(new FFOptions { BinaryFolder = configDir });
                 
                 await FFMpegDownloader.DownloadBinaries();
 
-                _downloadMessage = "Download complete! You can now use the plugin.";
-                Plugin.Log.Information("FFmpeg successfully downloaded.");
+                _downloadMessage = "Download complete! You can now use the Service.";
+                Log.Information("FFmpeg successfully downloaded.");
                 
                 await Task.Delay(3000);
                 IsOpen = false;
@@ -140,7 +145,7 @@ public class FFmpegSetupWindow : Window
             }
             catch (Exception ex)
             {
-                Plugin.Log.Error($"Failed to download FFmpeg: {ex}");
+                Log.Error($"Failed to download FFmpeg: {ex}");
                 _downloadMessage = $"Download failed: {ex.Message}\nPlease try the manual installation.";
                 _isDownloading = false;
             }
