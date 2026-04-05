@@ -15,16 +15,16 @@ namespace EorzeaCamcorder;
 
 public sealed class Plugin : IDalamudPlugin
 {
+    [PluginService] internal static IChatGui Chat { get; private set; } = null!;
     [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
     [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
     [PluginService] internal static ITextureReadbackProvider TextureReadbackProvider { get; private set; } = null!;
     [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
-
+    
+    private readonly CommandHandler CommandHandler;
     private const string CommandName = "/ecam";
-    //private const string SetupCommandName = "/ecamsetup";
-
     public Configuration Configuration { get; init; }
     public GameRecorder Recorder { get; init; }
     public IpcProvider IpcProvider { get; init; }
@@ -44,7 +44,8 @@ public sealed class Plugin : IDalamudPlugin
         Configuration.Initialize(PluginInterface);
 
         Recorder = new GameRecorder(Configuration);
-        IpcProvider = new IpcProvider(PluginInterface, Recorder);
+        IpcProvider = new IpcProvider(PluginInterface, Recorder, Configuration);
+        IpcProvider.Register();
 
         ConfigWindow = new ConfigWindow(this);
         MainWindow = new MainWindow(this);
@@ -53,7 +54,16 @@ public sealed class Plugin : IDalamudPlugin
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(MainWindow);
         WindowSystem.AddWindow(FFmpegSetupWindow);
-
+        
+        CommandHandler = new CommandHandler(
+            Recorder,
+            ConfigWindow,
+            MainWindow,
+            FFmpegSetupWindow,
+            Log,
+            Chat
+            );
+        
         if (!checkFFmpeg())
         {
             FFmpegSetupWindow.IsOpen = true;
@@ -63,12 +73,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             HelpMessage = "Opens the EorzeaCamcorder main window"
         });
-        /*
-        CommandManager.AddHandler(SetupCommandName, new CommandInfo(OnSetupCommand)
-        {
-            HelpMessage = "Debug: Opens the FFmpeg Setup Window"
-        });
-        */
+        
         _dtrEntry = DtrBar.Get("EorzeaCamcorder");
         if (_dtrEntry != null)
         {
@@ -134,13 +139,11 @@ public sealed class Plugin : IDalamudPlugin
         Recorder.Dispose();
 
         CommandManager.RemoveHandler(CommandName);
-        //CommandManager.RemoveHandler(SetupCommandName);
     }
-    //private void OnSetupCommand(string command, string args) => FFmpegSetupWindow.IsOpen = true;
     
     private void OnCommand(string command, string args)
     {
-        MainWindow.Toggle();
+        CommandHandler.Handle(args);
     }
 
     private void Draw()
@@ -155,16 +158,23 @@ public sealed class Plugin : IDalamudPlugin
         if (_dtrEntry == null) return;
 
         bool isRecording = Recorder.IsRecording;
+        bool isBuffer = Recorder.IsReplayBufferRunning;
+        
+        bool shouldShow = isRecording || isBuffer;
 
-        if (_dtrEntry.Shown != isRecording)
-        {
-            _dtrEntry.Shown = isRecording;
-        }
+        if (_dtrEntry.Shown != shouldShow) _dtrEntry.Shown = shouldShow;
+
+        if (!shouldShow) return;
 
         if (isRecording)
         {
             _dtrEntry.Text = SeIconChar.Circle.ToIconString() + " REC";
-            _dtrEntry.Tooltip = $"EorzeaCamcorder is active.\nStarted by: {Recorder.Initiator}";
+            _dtrEntry.Tooltip = $"Recording active\nStarted by: {Recorder.Initiator}";
+        }
+        else if (isBuffer)
+        {
+            _dtrEntry.Text = SeIconChar.Square.ToIconString() + " BUFF";
+            _dtrEntry.Tooltip = "Replay buffer is running";
         }
     }
 

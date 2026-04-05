@@ -15,6 +15,7 @@ public class Configuration : IPluginConfiguration
     public int ResolutionHeight { get; set; } = 0;
     public string OutputFormat { get; set; } = "mp4";
     public string VideoEncoder { get; set; } = "Software (x264)";
+    public bool AllowIpc { get; set; } = false;
     
     public int ReplayBufferSeconds { get; set; } = 30;
     

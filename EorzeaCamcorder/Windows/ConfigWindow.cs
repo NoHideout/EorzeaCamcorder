@@ -29,6 +29,17 @@ public class ConfigWindow : Window, IDisposable
 
         if (ImGui.CollapsingHeader("General Settings", ImGuiTreeNodeFlags.DefaultOpen))
         {
+            bool allowIpc = Configuration.AllowIpc;
+            if (ImGui.Checkbox("Enable IPC.", ref allowIpc))
+            {
+                Configuration.AllowIpc = allowIpc;
+                save = true;
+            }
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("This setting allows other plugins to start, stop and save recordings/replays.");
+            }
+            
             string outDir = Configuration.OutputDirectory;
             if (ImGui.InputText("Output Directory", ref outDir, 512))
             {
@@ -119,21 +130,17 @@ public class ConfigWindow : Window, IDisposable
             ImGui.Spacing();
         }
 
-        if (ImGui.CollapsingHeader("Maintenance", ImGuiTreeNodeFlags.DefaultOpen))
+        if (ImGui.CollapsingHeader("Advanced"))
         {
-            ImGui.TextWrapped("If the game crashes or closes unexpectedly while recording, raw temporary files (.ts) may be left in your output folder.");
-            ImGui.Spacing();
 
-            ImGui.PushStyleColor(ImGuiCol.Button, ImGuiColors.ParsedOrange);
             if (ImGui.Button("Scan & Recover Crashed Recordings", new Vector2(ImGui.GetContentRegionAvail().X, 30)))
             {
                 _plugin.Recorder.RecoverOrphanedFiles();
             }
-            ImGui.PopStyleColor();
 
             if (ImGui.IsItemHovered())
             {
-                ImGui.SetTooltip("This will scan your output directory and safely remux any orphaned .ts files into your chosen container format.");
+                ImGui.SetTooltip("This will scan your output directory and attempt to remux any orphaned .ts files.");
             }
             
             ImGui.Spacing();
