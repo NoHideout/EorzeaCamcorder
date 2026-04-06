@@ -81,15 +81,21 @@ public class MainWindow : Window, IDisposable
             statusText = "● Replay Buffer Active";
             color = ImGuiColors.ParsedBlue;
         }
-        else if (Recorder.IsSaving)
-        {
-            statusText = "● Saving...";
-            color = ImGuiColors.ParsedOrange;
-        }
         else
         {
             statusText = "● Idle";
             color = ImGuiColors.DalamudGrey;
+        }
+
+        if (Recorder.IsSaving)
+        {
+            statusText += " (Saving...)";
+            color = ImGuiColors.ParsedOrange;
+        }
+        else if (Recorder.IsWaiting)
+        {
+            statusText += " (Waiting for more footage...)";
+            color = ImGuiColors.ParsedGold;
         }
 
         ImGui.TextColored(color, statusText);

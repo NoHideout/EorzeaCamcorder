@@ -31,7 +31,9 @@ public class GameRecorder : IDisposable
 
     private int _savingTasks = 0;
     public bool IsSaving => _savingTasks > 0;
-
+    private int _waitingTasks = 0;
+    public bool IsWaiting => _waitingTasks > 0;
+    
     public event Action<string>? OnRecordingError;
 
     private CancellationTokenSource? _cancellationTokenSource;
@@ -202,8 +204,16 @@ public class GameRecorder : IDisposable
 
         if (delayMs > 0)
         {
-            try { await Task.Delay(delayMs, token); }
+            Interlocked.Increment(ref _waitingTasks);
+            try 
+            { 
+                await Task.Delay(delayMs, token); 
+            }
             catch (TaskCanceledException) { return; }
+            finally 
+            {
+                Interlocked.Decrement(ref _waitingTasks); 
+            }
         }
         
         byte[] snapshot = ringBuffer.TakeSnapshot();
