@@ -2,15 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
+using EorzeaCamcorder.Trigger;
 
-namespace EorzeaCamcorder.Trigger;
+namespace EorzeaCamcorder.Windows;
 
 public class TriggerWindow : Window, IDisposable
 {
     private Configuration config => Service.Config;
-
-    private readonly Dictionary<int, string> _searchStrings = new();
+    private readonly Dictionary<string, string> _searchStrings = new();
 
     private static readonly Dictionary<TriggerType, (string Name, string Description)> TriggerInfo = new()
     {
@@ -64,91 +65,38 @@ public class TriggerWindow : Window, IDisposable
         for (int i = 0; i < config.Triggers.Count; i++)
         {
             var t = config.Triggers[i];
-            ImGui.PushID(i);
-
-            ImGui.BeginGroup();
-            ImGui.Text($"Trigger #{i + 1}");
-
-            string currentTypeName = TriggerInfo.TryGetValue(t.Type, out var tInfo) ? tInfo.Name : t.Type.ToString();
             
-            if (ImGui.BeginCombo("Type", currentTypeName))
+            using var id = ImRaii.PushId(i);
+            
+            using (var group = ImRaii.Group())
             {
-                if (!_searchStrings.ContainsKey(i)) _searchStrings[i] = "";
-                string search = _searchStrings[i];
+                ImGui.Text($"Trigger #{i + 1}");
 
-                ImGui.InputTextWithHint("##search", "Search...", ref search, 100);
-                _searchStrings[i] = search;
+                if (DrawSearchableCombo("Type", ref t.Type, TriggerInfo, $"{i}_type")) save = true;
+
+                if (t.Type == TriggerType.LowHp)
+                {
+                    float th = t.Threshold;
+                    if (ImGui.SliderFloat("HP Threshold", ref th, 0.01f, 1.0f, "%.2f"))
+                    {
+                        t.Threshold = th;
+                        save = true;
+                    }
+                }
+
+                if (DrawSearchableCombo("Action", ref t.Action, ActionInfo, $"{i}_action")) save = true;
                 
-                ImGui.Separator();
-
-                foreach (var type in Enum.GetValues<TriggerType>())
+                if (ImGui.Button("Delete"))
                 {
-                    var info = TriggerInfo.TryGetValue(type, out var iInfo) ? iInfo : (Name: type.ToString(), Description: "");                    
-                    if (!string.IsNullOrEmpty(search) && !info.Name.Contains(search, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    bool isSelected = t.Type == type;
-                    if (ImGui.Selectable(info.Name, isSelected))
-                    {
-                        t.Type = type;
-                        save = true;
-                    }
-
-                    DrawTooltipIfHovered(info.Description);
-
-                    if (isSelected) ImGui.SetItemDefaultFocus();
-                }
-                ImGui.EndCombo();
-            }
-
-            DrawTooltipIfHovered(tInfo.Description);
-
-            if (t.Type == TriggerType.LowHp)
-            {
-                float th = t.Threshold;
-                if (ImGui.SliderFloat("HP Threshold", ref th, 0.01f, 1.0f, "%.2f"))
-                {
-                    t.Threshold = th;
+                    config.Triggers.RemoveAt(i);
+                    _searchStrings.Remove($"{i}_type"); 
+                    _searchStrings.Remove($"{i}_action"); 
                     save = true;
+                    break;
                 }
             }
 
-            string currentActionName = ActionInfo.TryGetValue(t.Action, out var aInfo) ? aInfo.Name : t.Action.ToString();
-            
-            if (ImGui.BeginCombo("Action", currentActionName))
-            {
-                foreach (var action in Enum.GetValues<TriggerAction>())
-                {
-                    var info = ActionInfo.TryGetValue(action, out var iInfo) ? iInfo : (Name: action.ToString(), Description: "");                    
-                    bool isSelected = t.Action == action;
-                    if (ImGui.Selectable(info.Name, isSelected))
-                    {
-                        t.Action = action;
-                        save = true;
-                    }
-
-                    DrawTooltipIfHovered(info.Description);
-
-                    if (isSelected) ImGui.SetItemDefaultFocus();
-                }
-                ImGui.EndCombo();
-            }
-            DrawTooltipIfHovered(aInfo.Description);
-
-            if (ImGui.Button("Delete"))
-            {
-                config.Triggers.RemoveAt(i);
-                _searchStrings.Remove(i);
-                save = true;
-                ImGui.EndGroup();
-                ImGui.PopID();
-                break;
-            }
-
-            ImGui.EndGroup();
             ImGui.Separator();
-
-            ImGui.PopID();
         }
 
         if (save)
@@ -158,14 +106,60 @@ public class TriggerWindow : Window, IDisposable
         }
     }
 
+    private bool DrawSearchableCombo<T>(string label, ref T currentValue, Dictionary<T, (string Name, string Description)> infoDict, string searchKey) where T : struct, Enum
+    {
+        bool changed = false;
+        string currentName = infoDict.TryGetValue(currentValue, out var info) ? info.Name : currentValue.ToString();
+
+        using (var combo = ImRaii.Combo(label, currentName))
+        {
+            if (combo)
+            {
+                if (!_searchStrings.TryGetValue(searchKey, out string? search))
+                {
+                    search = "";
+                }
+                
+                ImGui.InputTextWithHint("##search", "Search...", ref search, 100);
+                _searchStrings[searchKey] = search; 
+                
+                ImGui.Separator();
+
+                foreach (var item in Enum.GetValues<T>())
+                {
+                    var itemInfo = infoDict.TryGetValue(item, out var iInfo) ? iInfo : (Name: item.ToString(), Description: "");
+                    
+                    if (!string.IsNullOrEmpty(search) && !itemInfo.Name.Contains(search, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    
+                    bool isSelected = EqualityComparer<T>.Default.Equals(currentValue, item);
+                    
+                    if (ImGui.Selectable(itemInfo.Name, isSelected))
+                    {
+                        currentValue = item;
+                        changed = true;
+                    }
+
+                    DrawTooltipIfHovered(itemInfo.Description);
+                }
+            }
+        }
+        
+        DrawTooltipIfHovered(info.Description);
+
+        return changed;
+    }
+
     private void DrawTooltipIfHovered(string description)
     {
         if (string.IsNullOrEmpty(description) || !ImGui.IsItemHovered()) return;
 
-        ImGui.BeginTooltip();
-        ImGui.PushTextWrapPos(ImGui.GetFontSize() * 35f); 
-        ImGui.TextUnformatted(description);
-        ImGui.PopTextWrapPos();
-        ImGui.EndTooltip();
+        using var tooltip = ImRaii.Tooltip();
+        if (tooltip)
+        {
+            ImGui.PushTextWrapPos(ImGui.GetFontSize() * 35f); 
+            ImGui.TextUnformatted(description);
+            ImGui.PopTextWrapPos();
+        }
     }
 }

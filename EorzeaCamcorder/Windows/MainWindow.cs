@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Colors;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using EorzeaCamcorder.Recording;
 
@@ -47,9 +48,10 @@ public class MainWindow : Window, IDisposable
     {
         if (string.IsNullOrWhiteSpace(_errorMessage)) return;
 
-        ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DPSRed);
-        ImGui.TextWrapped($"Error: {_errorMessage}");
-        ImGui.PopStyleColor();
+        using (ImRaii.PushColor(ImGuiCol.Text, ImGuiColors.DPSRed))
+        {
+            ImGui.TextWrapped($"Error: {_errorMessage}");
+        }
 
         if ((DateTime.Now - _errorTime).TotalSeconds > 5)
         {
@@ -99,15 +101,16 @@ public class MainWindow : Window, IDisposable
         bool isRecording = Recorder.IsRecording;
         var btnColor = isRecording ? ImGuiColors.DPSRed : ImGuiColors.HealerGreen;
 
-        ImGui.PushStyleColor(ImGuiCol.Button, btnColor);
-        if (ImGui.Button(isRecording ? "Stop Recording" : "Start Recording", new Vector2(-1, 40)))
+        using (ImRaii.PushColor(ImGuiCol.Button, btnColor))
         {
-            if (isRecording)
-                Task.Run(async () => await Recorder.StopRecording());
-            else
-                Recorder.StartRecording();
+            if (ImGui.Button(isRecording ? "Stop Recording" : "Start Recording", new Vector2(-1, 40)))
+            {
+                if (isRecording)
+                    Task.Run(async () => await Recorder.StopRecording());
+                else
+                    Recorder.StartRecording();
+            }
         }
-        ImGui.PopStyleColor();
 
         ImGui.Spacing();
     }
@@ -129,17 +132,16 @@ public class MainWindow : Window, IDisposable
         bool saving = Recorder.IsSaving;
         bool replayActive = Recorder.IsReplayBufferRunning;
 
-        if (!replayActive || saving)
-            ImGui.BeginDisabled();
-
-        ImGui.PushStyleColor(ImGuiCol.Button, ImGuiColors.ParsedBlue);
-        if (ImGui.Button(saving ? "Saving Replay..." : "Save Replay", new Vector2(-1, 35)))
+        using (ImRaii.Disabled(!replayActive || saving))
         {
-            Recorder.SaveReplayBuffer();
+            using (ImRaii.PushColor(ImGuiCol.Button, ImGuiColors.ParsedBlue))
+            {
+                if (ImGui.Button(saving ? "Saving Replay..." : "Save Replay", new Vector2(-1, 35)))
+                {
+                    Recorder.SaveReplayBuffer();
+                }
+            }
         }
-        ImGui.PopStyleColor();
-
-        if (!replayActive || saving) ImGui.EndDisabled();
 
         ImGui.Spacing();
     }
