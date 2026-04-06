@@ -7,6 +7,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using EorzeaCamcorder.Recording;
+using EorzeaCamcorder.Trigger;
 using EorzeaCamcorder.Windows;
 using FFMpegCore;
 
@@ -50,7 +51,10 @@ public sealed class Plugin : IDalamudPlugin
         Service.ConfigWindow = new ConfigWindow();
         Service.MainWindow = new MainWindow();
         Service.FFmpegSetupWindow = new FFmpegSetupWindow();
-        
+        Service.TriggerManager = new TriggerManager();
+        Service.TriggerWindow = new TriggerWindow();
+
+        WindowSystem.AddWindow(Service.TriggerWindow);
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(MainWindow);
         WindowSystem.AddWindow(FFmpegSetupWindow);
@@ -128,8 +132,9 @@ public sealed class Plugin : IDalamudPlugin
         ConfigWindow.Dispose();
         MainWindow.Dispose();
         IpcProvider.Dispose();
+        Service.TriggerManager.Dispose();
+        Service.TriggerWindow.Dispose();
         Recorder.Dispose();
-
         CommandManager.RemoveHandler(CommandName);
     }
     

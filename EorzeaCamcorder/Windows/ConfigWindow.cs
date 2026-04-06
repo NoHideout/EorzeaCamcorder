@@ -142,6 +142,14 @@ public class ConfigWindow : Window, IDisposable
             ImGui.Spacing();
         }
 
+        if (ImGui.CollapsingHeader("Experimental"))
+        {
+            if (ImGui.Button("Open Trigger Configuration"))
+            {
+                Service.TriggerWindow.Toggle();
+            }
+        }
+
         if (save)
         {
             config.Save();

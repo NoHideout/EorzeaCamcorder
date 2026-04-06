@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Dalamud.Configuration;
 using Dalamud.Plugin;
+using EorzeaCamcorder.Trigger;
 
 namespace EorzeaCamcorder;
 
@@ -16,8 +18,9 @@ public class Configuration : IPluginConfiguration
     public string OutputFormat { get; set; } = "mp4";
     public string VideoEncoder { get; set; } = "Software (x264)";
     public bool AllowIpc { get; set; } = false;
-    
     public int ReplayBufferSeconds { get; set; } = 30;
+    
+    public List<TriggerConfig> Triggers { get; set; } = new();
     
     [NonSerialized]
     private IDalamudPluginInterface? _pluginInterface;

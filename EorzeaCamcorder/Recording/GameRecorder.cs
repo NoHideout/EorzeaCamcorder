@@ -175,15 +175,28 @@ public class GameRecorder : IDisposable
     {
         if (!IsReplayBufferRunning || _ringBuffer == null) return;
 
-        byte[] snapshot = _ringBuffer.TakeSnapshot();
+        _ = SaveReplayBufferDelayed(customFilePath);
+    }
+    
+    private async Task SaveReplayBufferDelayed(string? customFilePath)
+    {
+        var ringBuffer = _ringBuffer;
+        if (!IsReplayBufferRunning || ringBuffer == null) return;
         
+        //TODO dont hardcode this
+        //probably want to offset the clip slightly so important moment is the focus of the clip
+        await Task.Delay(1500);
+        byte[] snapshot = ringBuffer.TakeSnapshot();
+
         if (!Directory.Exists(_config.OutputDirectory)) Directory.CreateDirectory(_config.OutputDirectory);
         string finalPath = customFilePath ?? Path.Combine(_config.OutputDirectory, $"Replay_{DateTime.Now:yyyyMMdd_HHmmss}.{_config.OutputFormat}");
         string tempTsFile = finalPath + ".temp.ts";
 
         Interlocked.Increment(ref _savingTasks);
-        Task.Run(async () => {
-            try 
+
+        _ = Task.Run(async () =>
+        {
+            try
             {
                 await File.WriteAllBytesAsync(tempTsFile, snapshot);
                 await FFmpegMuxer.RemuxToFinalFormatAsync(tempTsFile, finalPath, true);
