@@ -80,15 +80,21 @@ public static class FFmpegMuxer
         finally { audioRecorder.Stop(); }
     }
 
-    public static async Task RemuxToFinalFormatAsync(string inputTsFile, string finalFilePath, bool deleteInput)
+    public static async Task RemuxToFinalFormatAsync(string inputTsFile, string finalFilePath, bool deleteInput, int? trimFromEndSeconds = null)
     {
         try
         {
             Log.Information($"Remuxing stream to: {finalFilePath}");
 
-            await FFMpegArguments
-                .FromFileInput(inputTsFile)
-                .OutputToFile(finalFilePath, true, options => options
+            var args = FFMpegArguments.FromFileInput(inputTsFile, true, options => 
+            {
+                if (trimFromEndSeconds.HasValue)
+                {
+                    options.WithCustomArgument($"-sseof -{trimFromEndSeconds.Value}");
+                }
+            });
+
+            await args.OutputToFile(finalFilePath, true, options => options
                     .WithCustomArgument("-c copy")
                     .WithFastStart())
                 .ProcessAsynchronously();

@@ -43,6 +43,8 @@ public class TriggerConfig
     public TriggerAction Action = TriggerAction.None;
 
     public float Threshold = 0.2f; // Low HP
+    
+    public ReplayEventPosition EventPosition = ReplayEventPosition.Middle;
 }
 
 #endregion
@@ -55,13 +57,20 @@ public class RuntimeTrigger: IDisposable
     public Action Execute = null!;
     public Action? OnDispose;
 
+    private bool _isInitialized;
     private bool _lastState;
 
     public void Update()
     {
         if (Condition == null) return;
         bool current = Condition();
-
+        
+        if (!_isInitialized)
+        {
+            _lastState = current;
+            _isInitialized = true;
+            return;
+        }
         if (current && !_lastState)
         {
             Execute();
@@ -85,7 +94,7 @@ public static class TriggerSystem
     {
         var trigger = new RuntimeTrigger
         {
-            Execute = () => ExecuteAction(config.Action)
+            Execute = () => ExecuteAction(config) 
         };
         
         switch (config.Type)
@@ -155,11 +164,11 @@ public static class TriggerSystem
         return trigger;
     }
 
-    private static void ExecuteAction(TriggerAction action)
+    private static void ExecuteAction(TriggerConfig config)
     {
         var recorder = Service.Recorder;
 
-        switch (action)
+        switch (config.Action)
         {
             case TriggerAction.StartRecording:
                 if (!recorder.IsRecording) recorder.StartRecording(null, "User defined Trigger");
@@ -167,8 +176,8 @@ public static class TriggerSystem
             case TriggerAction.StopRecording: 
                 if (recorder.IsRecording) _ = recorder.StopRecording();
                 break;
-            case TriggerAction.SaveReplay: 
-                if (recorder.IsReplayBufferRunning) recorder.SaveReplayBuffer(); 
+            case TriggerAction.SaveReplay:
+                if (recorder.IsReplayBufferRunning) recorder.SaveReplayBuffer(null, config.EventPosition); 
                 break;
             case TriggerAction.StartBuffer: 
                 if (!recorder.IsReplayBufferRunning) recorder.StartReplayBuffer("User defined Trigger");

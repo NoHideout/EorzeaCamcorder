@@ -23,7 +23,7 @@ public class IpcProvider : IDisposable
     private readonly ICallGateProvider<string, object> _startRecording;
     private readonly ICallGateProvider<object> _stopRecording;
     private readonly ICallGateProvider<bool> _isRecording;
-    private readonly ICallGateProvider<string, object> _saveReplay;
+    private readonly ICallGateProvider<string?, int?, object> _saveReplay;
     private readonly ICallGateProvider<string, object> _startReplay;
     private readonly ICallGateProvider<string> _stopReplay;
     private readonly ICallGateProvider<bool> _isReplayBufferRunning;
@@ -34,7 +34,7 @@ public class IpcProvider : IDisposable
         _startRecording = Pi.GetIpcProvider<string, object>(StartRecording);
         _stopRecording = Pi.GetIpcProvider<object>(StopRecording);
         _isRecording = Pi.GetIpcProvider<bool>(IsRecording);
-        _saveReplay = Pi.GetIpcProvider<string, object>(SaveReplay);
+        _saveReplay = Pi.GetIpcProvider<string?, int?, object>(SaveReplay);
         _startReplay = Pi.GetIpcProvider<string, object>(StartReplay);
         _stopReplay = Pi.GetIpcProvider<string>(StopReplay);
         _isReplayBufferRunning = Pi.GetIpcProvider<bool>(IsReplayBufferRunning);
@@ -62,11 +62,11 @@ public class IpcProvider : IDisposable
             _ = Recorder.StopRecording();
     }
 
-    private void HandleSaveReplay(string customPath)
+    private void HandleSaveReplay(string? customPath, int? eventPositionOverride)
     {
         if (!CanIpc()) return;
-
-        Recorder.SaveReplayBuffer(customPath);
+        ReplayEventPosition? posOverride = eventPositionOverride.HasValue ? (ReplayEventPosition)eventPositionOverride.Value : null;
+        Recorder.SaveReplayBuffer(customPath, posOverride);
     }
 
     private void HandleStartReplay(string _)

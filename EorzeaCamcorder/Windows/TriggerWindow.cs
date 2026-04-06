@@ -86,6 +86,19 @@ public class TriggerWindow : Window, IDisposable
 
                 if (DrawSearchableCombo("Action", ref t.Action, ActionInfo, $"{i}_action")) save = true;
                 
+                if (t.Action == TriggerAction.SaveReplay)
+                {
+                    string[] posNames = { "At the End", "In the Middle", "At the Start" };
+                    int currentPos = (int)t.EventPosition;
+                    
+                    if (ImGui.Combo("Event Position", ref currentPos, posNames, posNames.Length))
+                    {
+                        t.EventPosition = (ReplayEventPosition)currentPos;
+                        save = true;
+                    }
+                    DrawTooltipIfHovered("Where the triggering event should appear in the saved clip.");
+                }
+                
                 if (ImGui.Button("Delete"))
                 {
                     config.Triggers.RemoveAt(i);

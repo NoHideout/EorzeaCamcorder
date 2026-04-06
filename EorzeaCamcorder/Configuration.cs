@@ -7,6 +7,13 @@ using EorzeaCamcorder.Trigger;
 
 namespace EorzeaCamcorder;
 
+public enum ReplayEventPosition
+{
+    End = 0,
+    Middle = 1,
+    Start = 2
+}
+
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
@@ -19,6 +26,7 @@ public class Configuration : IPluginConfiguration
     public string VideoEncoder { get; set; } = "Software (x264)";
     public bool AllowIpc { get; set; } = false;
     public int ReplayBufferSeconds { get; set; } = 30;
+    public ReplayEventPosition ReplayEventPosition { get; set; } = ReplayEventPosition.Middle;    
     
     public List<TriggerConfig> Triggers { get; set; } = new();
     

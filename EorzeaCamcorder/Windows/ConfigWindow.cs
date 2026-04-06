@@ -10,7 +10,7 @@ public class ConfigWindow : Window, IDisposable
 {
     private Configuration config = Service.Config;
     
-    public ConfigWindow() : base("EorzeaCamcorder Configuration")
+    public ConfigWindow() : base("EorzeaCamcorder Settings")
     {
         SizeConstraints = new WindowSizeConstraints
         {
@@ -102,18 +102,28 @@ public class ConfigWindow : Window, IDisposable
         if (ImGui.CollapsingHeader("Replay Buffer", ImGuiTreeNodeFlags.DefaultOpen))
         {
             int replaySec = config.ReplayBufferSeconds;
-            if (ImGui.SliderInt("Buffer Length (sec)", ref replaySec, 5, 60))
+            if (ImGui.SliderInt("Buffer Length (sec)", ref replaySec, 5, 120))
             {
                 config.ReplayBufferSeconds = replaySec;
                 save = true;
             }
             DrawTooltipIfHovered("How many seconds of gameplay the Buffer mode will keep in RAM.");
             
+            string[] posNames = { "At the End", "In the Middle", "At the Start" };
+            int currentPos = (int)config.ReplayEventPosition;
+            if (ImGui.Combo("Trigger Event Position", ref currentPos, posNames, posNames.Length))
+            {
+                config.ReplayEventPosition = (ReplayEventPosition)currentPos;
+                save = true;
+            }
+            DrawTooltipIfHovered("Where the event that triggered the save should appear in the clip.");
+            
             ImGui.Spacing();
         }
 
         if (ImGui.CollapsingHeader("Advanced"))
         {
+            ImGui.Spacing();
             if (ImGui.Button("Scan & Recover Crashed Recordings", new Vector2(ImGui.GetContentRegionAvail().X, 30)))
             {
                 Service.Recorder.RecoverOrphanedFiles();

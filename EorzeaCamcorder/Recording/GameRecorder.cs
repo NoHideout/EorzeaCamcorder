@@ -35,6 +35,7 @@ public class GameRecorder : IDisposable
     public event Action<string>? OnRecordingError;
 
     private CancellationTokenSource? _cancellationTokenSource;
+    private CancellationTokenSource? _replayCancellationTokenSource;
     private BlockingCollection<CapturedFrame>? _frameQueue;
     private BlockingCollection<byte[]>? _audioQueue;
     private Task? _encoderTask;
@@ -148,9 +149,11 @@ public class GameRecorder : IDisposable
     public void StartReplayBuffer(string initiator = "User")
     {
         if (IsReplayBufferRunning) return;
-
-        int capacityBytes = ((_config.VideoBitrateKbps + 200) * 1024 / 8) * _config.ReplayBufferSeconds;
+        // ReSharper disable once PossibleLossOfFraction
+        int capacityBytes = (int)(((_config.VideoBitrateKbps + 200) * 1024L / 8L) * _config.ReplayBufferSeconds * 1.5);
         _ringBuffer = new RollingMemoryStream(capacityBytes);
+        
+        _replayCancellationTokenSource = new CancellationTokenSource();
         
         _broadcastStream.RingBuffer = _ringBuffer;
         IsReplayBufferRunning = true;
@@ -163,7 +166,11 @@ public class GameRecorder : IDisposable
     {
         if (!IsReplayBufferRunning) return;
         IsReplayBufferRunning = false;
-
+        
+        _replayCancellationTokenSource?.Cancel();
+        _replayCancellationTokenSource?.Dispose();
+        _replayCancellationTokenSource = null;
+        
         _broadcastStream.RingBuffer = null;
         _ringBuffer = null;
 
@@ -171,21 +178,34 @@ public class GameRecorder : IDisposable
         await CheckEngineStop();
     }
 
-    public void SaveReplayBuffer(string? customFilePath = null)
+    public void SaveReplayBuffer(string? customFilePath = null, ReplayEventPosition? positionOverride = null)
     {
         if (!IsReplayBufferRunning || _ringBuffer == null) return;
 
-        _ = SaveReplayBufferDelayed(customFilePath);
+        _ = SaveReplayBufferDelayed(customFilePath, positionOverride);
     }
-    
-    private async Task SaveReplayBufferDelayed(string? customFilePath)
+
+    private async Task SaveReplayBufferDelayed(string? customFilePath, ReplayEventPosition? positionOverride)
     {
         var ringBuffer = _ringBuffer;
+        var token = _replayCancellationTokenSource?.Token ?? CancellationToken.None;
         if (!IsReplayBufferRunning || ringBuffer == null) return;
+    
+        ReplayEventPosition targetPosition = positionOverride ?? _config.ReplayEventPosition;
+
+        int delayMs = targetPosition switch
+        {
+            ReplayEventPosition.Start => _config.ReplayBufferSeconds * 1000,
+            ReplayEventPosition.Middle => (_config.ReplayBufferSeconds * 1000) / 2,
+            _ => 0
+        };
+
+        if (delayMs > 0)
+        {
+            try { await Task.Delay(delayMs, token); }
+            catch (TaskCanceledException) { return; }
+        }
         
-        //TODO dont hardcode this
-        //probably want to offset the clip slightly so important moment is the focus of the clip
-        await Task.Delay(1500);
         byte[] snapshot = ringBuffer.TakeSnapshot();
 
         if (!Directory.Exists(_config.OutputDirectory)) Directory.CreateDirectory(_config.OutputDirectory);
@@ -199,7 +219,7 @@ public class GameRecorder : IDisposable
             try
             {
                 await File.WriteAllBytesAsync(tempTsFile, snapshot);
-                await FFmpegMuxer.RemuxToFinalFormatAsync(tempTsFile, finalPath, true);
+                await FFmpegMuxer.RemuxToFinalFormatAsync(tempTsFile, finalPath, true, _config.ReplayBufferSeconds);
             }
             finally { Interlocked.Decrement(ref _savingTasks); }
         });
