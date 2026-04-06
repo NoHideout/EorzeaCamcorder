@@ -41,7 +41,8 @@ public class TriggerWindow : Window, IDisposable
         { TriggerAction.StopRecording, ("Stop Recording", "Stops the current normal recording.") },
         { TriggerAction.StartBuffer, ("Start Replay Buffer", "Starts the replay buffer if it isn't already running.") },
         { TriggerAction.StopBuffer, ("Stop Replay Buffer", "Stops the running replay buffer.") },
-        { TriggerAction.SaveReplay, ("Save Replay", "Saves the last X seconds from the replay buffer to a file.") }
+        { TriggerAction.SaveReplay, ("Save Replay", "Saves the last X seconds from the replay buffer to a file.") },
+        { TriggerAction.AddChapterMarker, ("Add Chapter Marker", "Adds a chapter marker to the video. Useful for video editing and playback.") }
     };
 
     public TriggerWindow() : base("Trigger Configuration")

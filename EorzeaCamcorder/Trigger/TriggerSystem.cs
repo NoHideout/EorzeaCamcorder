@@ -34,7 +34,8 @@ public enum TriggerAction
     StopRecording = 2,
     StartBuffer = 3,
     StopBuffer = 4,
-    SaveReplay = 5
+    SaveReplay = 5,
+    AddChapterMarker = 6
 }
 
 #endregion
@@ -209,6 +210,9 @@ public static class TriggerSystem
                 break;
             case TriggerAction.StopBuffer: 
                 _ = recorder.StopReplayBuffer();
+                break;
+            case TriggerAction.AddChapterMarker:
+                recorder.AddChapterMarker(config.Type.ToString());
                 break;
         }
     }

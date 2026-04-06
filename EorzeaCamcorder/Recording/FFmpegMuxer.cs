@@ -75,7 +75,7 @@ public static class FFmpegMuxer
         finally { audioRecorder.Stop(); }
     }
 
-    public static async Task RemuxToFinalFormatAsync(string inputTsFile, string finalFilePath, bool deleteInput, int? trimFromEndSeconds = null)
+    public static async Task RemuxToFinalFormatAsync(string inputTsFile, string finalFilePath, bool deleteInput, int? trimFromEndSeconds = null, string? metadataFilePath = null)
     {
         try
         {
@@ -88,11 +88,24 @@ public static class FFmpegMuxer
                     options.WithCustomArgument($"-sseof -{trimFromEndSeconds.Value}");
                 }
             });
-
-            await args.OutputToFile(finalFilePath, true, options => options
-                    .WithCustomArgument("-c copy")
-                    .WithFastStart())
-                .ProcessAsynchronously();
+            
+            if (!string.IsNullOrEmpty(metadataFilePath) && File.Exists(metadataFilePath))
+            {
+                args = args.AddFileInput(metadataFilePath);
+            }
+            
+            await args.OutputToFile(finalFilePath, true, options => 
+            {
+                options.WithFastStart();
+                if (!string.IsNullOrEmpty(metadataFilePath) && File.Exists(metadataFilePath))
+                {
+                    options.WithCustomArgument("-map 0 -map_metadata 1 -c copy");
+                }
+                else
+                {
+                    options.WithCustomArgument("-c copy");
+                }
+            }).ProcessAsynchronously();
 
             Log.Information($"Successfully saved: {finalFilePath}");
         }
@@ -102,14 +115,8 @@ public static class FFmpegMuxer
         }
         finally
         {
-            if (deleteInput) 
-            {
-                try { File.Delete(inputTsFile); }
-                catch
-                {
-                    // ignored
-                }
-            }
+            if (deleteInput) { try { File.Delete(inputTsFile); } catch { } }
+            if (!string.IsNullOrEmpty(metadataFilePath)) { try { File.Delete(metadataFilePath); } catch { } }
         }
     }
 }

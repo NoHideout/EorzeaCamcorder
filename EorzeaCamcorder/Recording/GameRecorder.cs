@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -54,6 +55,8 @@ public class GameRecorder : IDisposable
     
     private string? _currentRecordingFinalPath;
     private string? _currentRecordingTempPath;
+    
+    private List<(long TimestampMs, string Title)> _chapterMarkers = new();
 
     public GameRecorder(Configuration config) { _config = config; }
 
@@ -70,7 +73,8 @@ public class GameRecorder : IDisposable
             _audioCaptureStarted = false;
             _encodedFrameCount = 0;
             _recordingStopwatch.Reset();
-
+            _chapterMarkers.Clear();
+            
             _audioRecorder = new AudioRecorder();
             _cancellationTokenSource = new CancellationTokenSource();
             
@@ -138,12 +142,19 @@ public class GameRecorder : IDisposable
 
         string tempPath = _currentRecordingTempPath!;
         string finalPath = _currentRecordingFinalPath!;
-
+        
+        string? metadataFile = null;
+        if (_chapterMarkers.Count > 0)
+        {
+            metadataFile = finalPath + ".metadata.txt";
+            await GenerateMetadataFileAsync(metadataFile, _chapterMarkers, _recordingStopwatch.ElapsedMilliseconds);
+        }
+        
         await CheckEngineStop();
 
         Interlocked.Increment(ref _savingTasks);
         _ = Task.Run(async () => {
-            try { await FFmpegMuxer.RemuxToFinalFormatAsync(tempPath, finalPath, true); }
+            try { await FFmpegMuxer.RemuxToFinalFormatAsync(tempPath, finalPath, true, null, metadataFile); }
             finally { Interlocked.Decrement(ref _savingTasks); }
         });
     }
@@ -377,6 +388,41 @@ public class GameRecorder : IDisposable
                 }
             }
         });
+    }
+    
+    public void AddChapterMarker(string title)
+    {
+        if (!IsRecording || !_recordingStopwatch.IsRunning) return;
+    
+        _chapterMarkers.Add((_recordingStopwatch.ElapsedMilliseconds, title));
+        Service.Log.Verbose($"Added chapter '{title}' at {_recordingStopwatch.ElapsedMilliseconds}ms");
+    }
+    
+    private async Task GenerateMetadataFileAsync(string filePath, List<(long TimestampMs, string Title)> markers, long totalDurationMs)
+    {
+        using var writer = new StreamWriter(filePath);
+        await writer.WriteLineAsync(";FFMETADATA1");
+        if (markers.Count > 0 && markers[0].TimestampMs > 0) // need to write an initial marker so the first marker isnt stretched
+        {
+            await writer.WriteLineAsync("[CHAPTER]");
+            await writer.WriteLineAsync("TIMEBASE=1/1000");
+            await writer.WriteLineAsync("START=0");
+            await writer.WriteLineAsync($"END={markers[0].TimestampMs}");
+            await writer.WriteLineAsync("title=Recording Started");
+        }
+        
+        for (int i = 0; i < markers.Count; i++)
+        {
+            long start = markers[i].TimestampMs;
+            long end = (i + 1 < markers.Count) ? markers[i + 1].TimestampMs : totalDurationMs;
+
+            await writer.WriteLineAsync("[CHAPTER]");
+            await writer.WriteLineAsync("TIMEBASE=1/1000");
+            await writer.WriteLineAsync($"START={start}");
+            await writer.WriteLineAsync($"END={end}");
+            string safeTitle = markers[i].Title.Replace("=", " ").Replace(";", " ").Replace("#", " "); //jic i add user strings for markers someday
+            await writer.WriteLineAsync($"title={safeTitle}");
+        }
     }
     
     private void CleanupResources()
