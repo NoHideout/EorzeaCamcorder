@@ -57,9 +57,7 @@ public class IpcProvider : IDisposable
     private void HandleStopRecording()
     {
         if (!CanIpc()) return;
-
-        if (Recorder.IsRecording)
-            _ = Recorder.StopRecording();
+        _ = Recorder.StopRecording();
     }
 
     private void HandleSaveReplay(string? customPath, int? eventPositionOverride)

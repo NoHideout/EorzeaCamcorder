@@ -171,19 +171,19 @@ public static class TriggerSystem
         switch (config.Action)
         {
             case TriggerAction.StartRecording:
-                if (!recorder.IsRecording) recorder.StartRecording(null, "User defined Trigger");
+                recorder.StartRecording(null, "User defined Trigger");
                 break;
             case TriggerAction.StopRecording: 
-                if (recorder.IsRecording) _ = recorder.StopRecording();
+                _ = recorder.StopRecording();
                 break;
             case TriggerAction.SaveReplay:
-                if (recorder.IsReplayBufferRunning) recorder.SaveReplayBuffer(null, config.EventPosition); 
+                recorder.SaveReplayBuffer(null, config.EventPosition); 
                 break;
             case TriggerAction.StartBuffer: 
-                if (!recorder.IsReplayBufferRunning) recorder.StartReplayBuffer("User defined Trigger");
+                recorder.StartReplayBuffer("User defined Trigger");
                 break;
             case TriggerAction.StopBuffer: 
-                if (recorder.IsReplayBufferRunning) _ = recorder.StopReplayBuffer();
+                _ = recorder.StopReplayBuffer();
                 break;
         }
     }

@@ -13,17 +13,14 @@ public class CommandHandler
     {
         var split = args.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        if (split.Length == 0)
-        {
-            Service.MainWindow.Toggle();
-            return;
-        }
-
-        var group = split[0].ToLower();
+        var group = split.Length > 0 ? split[0].ToLower() : "toggle";
         var sub = split.Length > 1 ? split[1].ToLower() : string.Empty;
 
         switch (group)
         {
+            case "toggle":
+                Service.MainWindow.Toggle();
+                break;
             case "help":
             case "?":
                 Chat.Print(

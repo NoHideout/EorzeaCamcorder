@@ -30,12 +30,7 @@ public static class FFmpegMuxer
             int width = firstFrame.Width;
             int height = firstFrame.Height;
 
-            int sr = 0, ch = 0, bps = 0;
-            for (int i = 0; i < 50; i++)
-            {
-                try { audioRecorder.GetFormat(out sr, out ch, out bps); if (sr != 0) break; }
-                catch { if (i == 49) throw; Thread.Sleep(100); }
-            }
+            audioRecorder.GetFormat(out int sr, out int ch, out int bps);
 
             string audioFmt = bps == 32 ? "f32le" : "s16le";
 
@@ -107,7 +102,14 @@ public static class FFmpegMuxer
         }
         finally
         {
-            if (deleteInput && File.Exists(inputTsFile)) File.Delete(inputTsFile);
+            if (deleteInput) 
+            {
+                try { File.Delete(inputTsFile); }
+                catch
+                {
+                    // ignored
+                }
+            }
         }
     }
 }

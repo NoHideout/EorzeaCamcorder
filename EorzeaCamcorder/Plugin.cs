@@ -95,24 +95,21 @@ public sealed class Plugin : IDalamudPlugin
             Log.Debug($"FFmpeg found in {configDir}");
             return true;
         }
-        Log.Debug($"FFmpeg not found in {configDir}");
-        
+        Log.Debug($"FFmpeg not found in {configDir}. Checking PATH.");
+    
         var envPath = Environment.GetEnvironmentVariable("PATH");
-        if (envPath != null)
+        if (!string.IsNullOrWhiteSpace(envPath))
         {
-            foreach (var path in envPath.Split(Path.PathSeparator))
+            var paths = envPath.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var path in paths)
             {
-                try
+                if (path.IndexOfAny(Path.GetInvalidPathChars()) >= 0) continue;
+
+                string fullPath = Path.Combine(path.Trim('"'), exeName);
+                if (File.Exists(fullPath))
                 {
-                    if (File.Exists(Path.Combine(path, exeName)))
-                    {
-                        Log.Debug($"FFmpeg found in {path}");
-                        return true;
-                    }
-                }
-                catch
-                {
-                    // ignored
+                    Log.Debug($"FFmpeg found in PATH: {fullPath}");
+                    return true;
                 }
             }
         }
@@ -156,10 +153,9 @@ public sealed class Plugin : IDalamudPlugin
 
         bool isRecording = Recorder.IsRecording;
         bool isBuffer = Recorder.IsReplayBufferRunning;
-        
         bool shouldShow = isRecording || isBuffer;
 
-        if (_dtrEntry.Shown != shouldShow) _dtrEntry.Shown = shouldShow;
+        _dtrEntry.Shown = shouldShow;
 
         if (!shouldShow) return;
 

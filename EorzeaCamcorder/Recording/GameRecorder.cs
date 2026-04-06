@@ -23,12 +23,12 @@ public class GameRecorder : IDisposable
     private int _targetFps = 60;
 
     public IDalamudTextureWrap? PreviewTexture { get; private set; }
-    
     public bool IsEngineRunning { get; private set; } = false;
     public bool IsRecording { get; private set; } = false;
     public bool IsReplayBufferRunning { get; private set; } = false;
     public string Initiator { get; private set; } = "User";
 
+    private bool _isCapturing = false;
     private int _savingTasks = 0;
     public bool IsSaving => _savingTasks > 0;
     private int _waitingTasks = 0;
@@ -114,7 +114,7 @@ public class GameRecorder : IDisposable
     {
         if (IsRecording) return;
 
-        if (!Directory.Exists(_config.OutputDirectory)) Directory.CreateDirectory(_config.OutputDirectory);
+        Directory.CreateDirectory(_config.OutputDirectory);
 
         _currentRecordingFinalPath = customFilePath ?? Path.Combine(_config.OutputDirectory, $"Recording_{DateTime.Now:yyyyMMdd_HHmmss}.{_config.OutputFormat}");
         _currentRecordingTempPath = _currentRecordingFinalPath + ".ts";
@@ -218,7 +218,7 @@ public class GameRecorder : IDisposable
         
         byte[] snapshot = ringBuffer.TakeSnapshot();
 
-        if (!Directory.Exists(_config.OutputDirectory)) Directory.CreateDirectory(_config.OutputDirectory);
+        Directory.CreateDirectory(_config.OutputDirectory);
         string finalPath = customFilePath ?? Path.Combine(_config.OutputDirectory, $"Replay_{DateTime.Now:yyyyMMdd_HHmmss}.{_config.OutputFormat}");
         string tempTsFile = finalPath + ".temp.ts";
 
@@ -243,13 +243,12 @@ public class GameRecorder : IDisposable
 
     public void Update()
     {
-        if (!IsEngineRunning || PreviewTexture == null || _frameQueue == null || _frameQueue.IsAddingCompleted) return;
+        if (!IsEngineRunning || PreviewTexture == null || _frameQueue == null || _frameQueue.IsAddingCompleted || _isCapturing) return;
 
         if (!_recordingStopwatch.IsRunning)
         {
             _recordingStopwatch.Start();
-            CaptureFrameAsync(1); 
-            _encodedFrameCount = 1;
+            CaptureFrameAsync(1);
             return;
         }
 
@@ -259,66 +258,81 @@ public class GameRecorder : IDisposable
 
         if (framesToCapture > 0)
         {
-            _encodedFrameCount += framesToCapture;
             CaptureFrameAsync((int)framesToCapture);
         }
     }
 
     private async void CaptureFrameAsync(int repeatCount)
+{
+    var queueRef = _frameQueue;
+    var textureRef = PreviewTexture;
+
+    if (textureRef == null || queueRef == null || queueRef.IsAddingCompleted) return;
+
+    _isCapturing = true;
+
+    try
     {
-        var queueRef = _frameQueue;
-        var textureRef = PreviewTexture;
+        var result = await TextureReadback.GetRawImageAsync(textureRef, leaveWrapOpen: true);
 
-        if (textureRef == null || queueRef == null || queueRef.IsAddingCompleted) return;
+        if (queueRef.IsAddingCompleted || result.RawData == null) return;
 
-        try
+        var spec = result.Specification;
+        byte[] rawSource = result.RawData;
+
+        int width = spec.Width;
+        int height = spec.Height;
+        int pitch = spec.Pitch;
+
+        if (width % 2 != 0) width--;
+        if (height % 2 != 0) height--;
+
+        int stride = width * 4;
+        byte[] rawBuffer = System.Buffers.ArrayPool<byte>.Shared.Rent(stride * height);
+        var srcSpan = MemoryMarshal.Cast<byte, uint>(rawSource.AsSpan());
+        var dstSpan = MemoryMarshal.Cast<byte, uint>(rawBuffer.AsSpan());
+
+        int pitchInUints = pitch / 4;
+        int strideInUints = width; 
+
+        for (int y = 0; y < height; y++)
         {
-            var result = await TextureReadback.GetRawImageAsync(textureRef, leaveWrapOpen: true);
+            int srcRowStart = y * pitchInUints;
+            int dstRowStart = y * strideInUints; 
 
-            if (queueRef.IsAddingCompleted) return;
-            if (result.RawData == null) return;
-
-            var spec = result.Specification;
-            byte[] rawSource = result.RawData;
-
-            int width = spec.Width;
-            int height = spec.Height;
-            int pitch = spec.Pitch;
-
-            if (width % 2 != 0) width--;
-            if (height % 2 != 0) height--;
-
-            int stride = width * 4;
-            byte[] rawBuffer = System.Buffers.ArrayPool<byte>.Shared.Rent(stride * height);
-            var srcSpan = MemoryMarshal.Cast<byte, uint>(rawSource.AsSpan());
-            var dstSpan = MemoryMarshal.Cast<byte, uint>(rawBuffer.AsSpan());
-
-            int pitchInUints = pitch / 4;
-            int strideInUints = width; 
-
-            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
             {
-                int srcRowStart = y * pitchInUints;
-                int dstRowStart = y * strideInUints; 
-
-                for (int x = 0; x < width; x++)
-                {
-                    uint pixel = srcSpan[srcRowStart + x];
-                    dstSpan[dstRowStart + x] = (pixel & 0xFF00FF00) | ((pixel & 0x00FF0000) >> 16) | ((pixel & 0x000000FF) << 16);
-                }
+                uint pixel = srcSpan[srcRowStart + x];
+                dstSpan[dstRowStart + x] = (pixel & 0xFF00FF00) | ((pixel & 0x00FF0000) >> 16) | ((pixel & 0x000000FF) << 16);
             }
-
-            var frame = new CapturedFrame { Data = rawBuffer, RepeatCount = repeatCount, Width = width, Height = height };
-
-            try
-            {
-                if (!_audioCaptureStarted) _audioCaptureStarted = true;
-                if (!queueRef.TryAdd(frame)) System.Buffers.ArrayPool<byte>.Shared.Return(rawBuffer);
-            }
-            catch (InvalidOperationException) { System.Buffers.ArrayPool<byte>.Shared.Return(rawBuffer); }
         }
-        catch (Exception ex) { Log.Error($"Frame capture error: {ex.Message}"); }
+
+        var frame = new CapturedFrame { Data = rawBuffer, RepeatCount = repeatCount, Width = width, Height = height };
+
+        if (!_audioCaptureStarted) _audioCaptureStarted = true;
+        
+        if (!queueRef.TryAdd(frame)) 
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(rawBuffer);
+        }
+        else
+        {
+            _encodedFrameCount += repeatCount;
+        }
     }
+    catch (InvalidOperationException) 
+    { 
+        // queue closed mid-add
+    }
+    catch (Exception ex) 
+    { 
+        Log.Error($"Frame capture error: {ex.Message}"); 
+    }
+    finally
+    {
+        _isCapturing = false;
+    }
+}
 
     private async Task CreateTextureWrap(CancellationToken token, uint viewportId)
     {

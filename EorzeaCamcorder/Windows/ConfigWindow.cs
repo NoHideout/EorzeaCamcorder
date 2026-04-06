@@ -22,15 +22,15 @@ public class ConfigWindow : Window, IDisposable
 
     public override void Draw()
     {
-        bool save = false;
-
+        ImGui.TextDisabled("Settings are automatically saved when you close this window.");
+        ImGui.Separator();
+        ImGui.Spacing();
         if (ImGui.CollapsingHeader("General Settings", ImGuiTreeNodeFlags.DefaultOpen))
         {
             bool allowIpc = config.AllowIpc;
             if (ImGui.Checkbox("Enable IPC.", ref allowIpc))
             {
                 config.AllowIpc = allowIpc;
-                save = true;
             }
             DrawTooltipIfHovered("This setting allows other plugins to start, stop and save recordings/replays.");
             
@@ -38,7 +38,6 @@ public class ConfigWindow : Window, IDisposable
             if (ImGui.InputText("Output Directory", ref outDir, 512))
             {
                 config.OutputDirectory = outDir;
-                save = true;
             }
 
             string[] formats = { "mp4", "mkv" };
@@ -48,7 +47,6 @@ public class ConfigWindow : Window, IDisposable
             if (ImGui.Combo("Container Format", ref currentFormatIdx, formats, formats.Length))
             {
                 config.OutputFormat = formats[currentFormatIdx];
-                save = true;
             }
             DrawTooltipIfHovered("MKV is highly recommended! If the game crashes during recording, an MKV file will still be playable. MP4 files will corrupt.");
             
@@ -67,7 +65,6 @@ public class ConfigWindow : Window, IDisposable
             if (ImGui.Combo("Output Resolution", ref currentResIndex, resOptions, resOptions.Length))
             {
                 config.ResolutionHeight = resValues[currentResIndex];
-                save = true;
             }
             DrawTooltipIfHovered("Scaling preserves aspect ratio. 'Source' records exactly what you see.");
 
@@ -75,14 +72,12 @@ public class ConfigWindow : Window, IDisposable
             if (ImGui.SliderInt("Target FPS", ref fps, 15, 120))
             {
                 config.TargetFps = fps;
-                save = true;
             }
 
             int bitrate = config.VideoBitrateKbps;
             if (ImGui.SliderInt("Bitrate (kbps)", ref bitrate, 1000, 20000))
             {
                 config.VideoBitrateKbps = bitrate;
-                save = true;
             }
 
             string[] encoders = { "Software (x264)", "NVIDIA (NVENC)", "AMD (AMF)", "Intel (QSV)" };
@@ -92,7 +87,6 @@ public class ConfigWindow : Window, IDisposable
             if (ImGui.Combo("Video Encoder", ref currentEncoderIdx, encoders, encoders.Length))
             {
                 config.VideoEncoder = encoders[currentEncoderIdx];
-                save = true;
             }
             DrawTooltipIfHovered("Hardware encoding offloads work to your GPU, saving CPU performance.\nIf recordings fail to start, your GPU may not support the selected encoder.");
             
@@ -105,7 +99,6 @@ public class ConfigWindow : Window, IDisposable
             if (ImGui.SliderInt("Buffer Length (sec)", ref replaySec, 5, 120))
             {
                 config.ReplayBufferSeconds = replaySec;
-                save = true;
             }
             DrawTooltipIfHovered("How many seconds of gameplay the Buffer mode will keep in RAM.");
             
@@ -114,7 +107,6 @@ public class ConfigWindow : Window, IDisposable
             if (ImGui.Combo("Trigger Event Position", ref currentPos, posNames, posNames.Length))
             {
                 config.ReplayEventPosition = (ReplayEventPosition)currentPos;
-                save = true;
             }
             DrawTooltipIfHovered("Where the event that triggered the save should appear in the clip.");
             
@@ -140,11 +132,12 @@ public class ConfigWindow : Window, IDisposable
                 Service.TriggerWindow.Toggle();
             }
         }
+    }
 
-        if (save)
-        {
-            config.Save();
-        }
+    public override void OnClose()
+    {
+        base.OnClose();
+        config.Save();
     }
 
     private void DrawTooltipIfHovered(string description)
