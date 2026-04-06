@@ -16,24 +16,19 @@ public class TriggerManager : IDisposable
 
     public void Reload()
     {
+        foreach (var trigger in _triggers) trigger.Dispose();
         _triggers.Clear();
-
-        foreach (var cfg in Service.Config.Triggers)
-        {
-            _triggers.Add(TriggerSystem.Build(cfg));
-        }
+        foreach (var cfg in Service.Config.Triggers) _triggers.Add(TriggerSystem.Build(cfg));
     }
 
     private void OnUpdate(IFramework framework)
     {
-        foreach (var trigger in _triggers)
-        {
-            trigger.Update();
-        }
+        foreach (var trigger in _triggers) trigger.Update();
     }
 
     public void Dispose()
     {
         Service.Framework.Update -= OnUpdate;
+        foreach (var trigger in _triggers) trigger.Dispose();
     }
 }

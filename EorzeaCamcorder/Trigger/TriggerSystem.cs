@@ -9,7 +9,17 @@ public enum TriggerType
     PlayerDeath = 0,
     LowHp = 1,
     EnterCombat = 2,
-    LeaveCombat = 3
+    LeaveCombat = 3,
+    EnterDeepDungeon = 4,
+    LeaveDeepDungeon = 5,
+    EnterDuty = 6,
+    LeaveDuty = 7,
+    
+    //event based
+    DutyStarted = 100,
+    DutyWiped = 101,
+    DutyRecommenced = 102,
+    DutyCompleted = 103
 }
 
 public enum TriggerAction
@@ -17,7 +27,9 @@ public enum TriggerAction
     None = 0,
     StartRecording = 1,
     StopRecording = 2,
-    SaveReplay = 3
+    StartBuffer = 3,
+    StopBuffer = 4,
+    SaveReplay = 5
 }
 
 #endregion
@@ -37,15 +49,17 @@ public class TriggerConfig
 
 #region Runtime Trigger
 
-public class RuntimeTrigger
+public class RuntimeTrigger: IDisposable
 {
-    public Func<bool> Condition = null!;
+    public Func<bool>? Condition;
     public Action Execute = null!;
+    public Action? OnDispose;
 
     private bool _lastState;
 
     public void Update()
     {
+        if (Condition == null) return;
         bool current = Condition();
 
         if (current && !_lastState)
@@ -54,6 +68,10 @@ public class RuntimeTrigger
         }
 
         _lastState = current;
+    }
+    public void Dispose()
+    {
+        OnDispose?.Invoke();
     }
 }
 
@@ -65,40 +83,76 @@ public static class TriggerSystem
 {
     public static RuntimeTrigger Build(TriggerConfig config)
     {
-        return new RuntimeTrigger
+        var trigger = new RuntimeTrigger
         {
-            Condition = BuildCondition(config),
             Execute = () => ExecuteAction(config.Action)
         };
-    }
-
-    private static Func<bool> BuildCondition(TriggerConfig config)
-    {
-        return config.Type switch
+        
+        switch (config.Type)
         {
-            TriggerType.PlayerDeath => () =>
+            // Condition
+            case TriggerType.PlayerDeath:
+                trigger.Condition = () => Service.ObjectTable.LocalPlayer?.IsDead ?? false;
+                break;
+            case TriggerType.LowHp:
+                trigger.Condition = () =>
+                {
+                    var p = Service.ObjectTable.LocalPlayer;
+                    if (p == null) return false;
+                    return (p.CurrentHp / (float)p.MaxHp) <= config.Threshold;
+                };
+                break;
+            case TriggerType.EnterCombat:
+                trigger.Condition = () => Service.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InCombat];
+                break;
+            case TriggerType.LeaveCombat:
+                trigger.Condition = () => !Service.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InCombat];
+                break;
+            case TriggerType.EnterDeepDungeon:
+                trigger.Condition = () => Service.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InDeepDungeon];
+                break;
+            case TriggerType.LeaveDeepDungeon:
+                trigger.Condition = () => !Service.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InDeepDungeon];
+                break;
+            case TriggerType.EnterDuty:
+                trigger.Condition = () => Service.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.BoundByDuty];
+                break;
+            case TriggerType.LeaveDuty:
+                trigger.Condition = () => !Service.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.BoundByDuty];
+                break;
+
+            // Event
+            case TriggerType.DutyStarted:
             {
-                var p = Service.ObjectTable.LocalPlayer;
-                return p?.IsDead ?? false;
-            },
-
-            TriggerType.LowHp => () =>
+                EventHandler<ushort> handler = (_, _) => trigger.Execute();
+                Service.DutyState.DutyStarted += handler;
+                trigger.OnDispose = () => Service.DutyState.DutyStarted -= handler;
+                break;
+            }
+            case TriggerType.DutyWiped:
             {
-                var p = Service.ObjectTable.LocalPlayer;
-                if (p == null) return false;
+                EventHandler<ushort> handler = (_, _) => trigger.Execute();
+                Service.DutyState.DutyWiped += handler;
+                trigger.OnDispose = () => Service.DutyState.DutyWiped -= handler;
+                break;
+            }
+            case TriggerType.DutyRecommenced:
+            {
+                EventHandler<ushort> handler = (_, _) => trigger.Execute();
+                Service.DutyState.DutyRecommenced += handler;
+                trigger.OnDispose = () => Service.DutyState.DutyRecommenced -= handler;
+                break;
+            }
+            case TriggerType.DutyCompleted:
+            {
+                EventHandler<ushort> handler = (_, _) => trigger.Execute();
+                Service.DutyState.DutyCompleted += handler;
+                trigger.OnDispose = () => Service.DutyState.DutyCompleted -= handler;
+                break;
+            }
+        }
 
-                float hp = p.CurrentHp / (float)p.MaxHp;
-                return hp <= config.Threshold;
-            },
-
-            TriggerType.EnterCombat => () =>
-                Service.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InCombat],
-
-            TriggerType.LeaveCombat => () =>
-                !Service.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InCombat],
-
-            _ => () => false
-        };
+        return trigger;
     }
 
     private static void ExecuteAction(TriggerAction action)
@@ -108,18 +162,19 @@ public static class TriggerSystem
         switch (action)
         {
             case TriggerAction.StartRecording:
-                if (!recorder.IsRecording)
-                    recorder.StartRecording(null, "Trigger");
+                if (!recorder.IsRecording) recorder.StartRecording(null, "User defined Trigger");
                 break;
-
-            case TriggerAction.StopRecording:
-                if (recorder.IsRecording)
-                    _ = recorder.StopRecording();
+            case TriggerAction.StopRecording: 
+                if (recorder.IsRecording) _ = recorder.StopRecording();
                 break;
-
-            case TriggerAction.SaveReplay:
-                if (recorder.IsReplayBufferRunning)
-                    recorder.SaveReplayBuffer();
+            case TriggerAction.SaveReplay: 
+                if (recorder.IsReplayBufferRunning) recorder.SaveReplayBuffer(); 
+                break;
+            case TriggerAction.StartBuffer: 
+                if (!recorder.IsReplayBufferRunning) recorder.StartReplayBuffer("User defined Trigger");
+                break;
+            case TriggerAction.StopBuffer: 
+                if (recorder.IsReplayBufferRunning) _ = recorder.StopReplayBuffer();
                 break;
         }
     }
