@@ -17,7 +17,7 @@ public class Service
     [PluginService] public static ITextureReadbackProvider TextureReadbackProvider { get; private set; } = null!;
     [PluginService] public static IDtrBar DtrBar { get; private set; } = null!;
     [PluginService] public static IObjectTable ObjectTable { get; private set; } = null!;
-    [PluginService] public static IClientState ClientState { get; private set; } = null!; //Todo add pvp and gposing in Trigger
+    [PluginService] public static IClientState ClientState { get; private set; } = null!;
     [PluginService] public static IFramework Framework { get; private set; } = null!;
     [PluginService] internal static ICondition Condition { get; private set; } = null!;
     [PluginService] internal static IDutyState DutyState { get; private set; } = null!;

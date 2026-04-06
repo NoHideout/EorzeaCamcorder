@@ -14,12 +14,17 @@ public enum TriggerType
     LeaveDeepDungeon = 5,
     EnterDuty = 6,
     LeaveDuty = 7,
+    EnterGpose = 8,
+    LeaveGpose = 9,
     
     //event based
     DutyStarted = 100,
     DutyWiped = 101,
     DutyRecommenced = 102,
-    DutyCompleted = 103
+    DutyCompleted = 103,
+    
+    EnterPvP = 200,
+    LeavePvP = 201
 }
 
 public enum TriggerAction
@@ -129,6 +134,12 @@ public static class TriggerSystem
             case TriggerType.LeaveDuty:
                 trigger.Condition = () => !Service.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.BoundByDuty];
                 break;
+            case TriggerType.EnterGpose:
+                trigger.Condition = () => Service.ClientState.IsGPosing;
+                break;
+            case TriggerType.LeaveGpose:
+                trigger.Condition = () => !Service.ClientState.IsGPosing;
+                break;
 
             // Event
             case TriggerType.DutyStarted:
@@ -157,6 +168,20 @@ public static class TriggerSystem
                 EventHandler<ushort> handler = (_, _) => trigger.Execute();
                 Service.DutyState.DutyCompleted += handler;
                 trigger.OnDispose = () => Service.DutyState.DutyCompleted -= handler;
+                break;
+            }
+            case TriggerType.EnterPvP:
+            {
+                Action handler = () => trigger.Execute();
+                Service.ClientState.EnterPvP += handler;
+                trigger.OnDispose = () => Service.ClientState.EnterPvP -= handler;
+                break;
+            }
+            case TriggerType.LeavePvP:
+            {
+                Action handler = () => trigger.Execute();
+                Service.ClientState.LeavePvP += handler;
+                trigger.OnDispose = () => Service.ClientState.LeavePvP -= handler;
                 break;
             }
         }

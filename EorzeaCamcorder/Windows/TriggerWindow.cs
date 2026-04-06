@@ -27,7 +27,11 @@ public class TriggerWindow : Window, IDisposable
         { TriggerType.DutyStarted, ("Duty Started", "Fires after 'Duty Commenced' appears.") },
         { TriggerType.DutyWiped, ("Duty Wiped", "Fires when the entire party is defeated and the screen fades to black.") },
         { TriggerType.DutyRecommenced, ("Duty Recommenced", "Fires when you respawn and the barrier drops.") },
-        { TriggerType.DutyCompleted, ("Duty Completed", "Fires only when the duty boss is defeated and 'Duty Complete' appears.") }
+        { TriggerType.DutyCompleted, ("Duty Completed", "Fires only when the duty boss is defeated and 'Duty Complete' appears.") },
+        { TriggerType.EnterPvP, ("Enter PvP", "Fires when you enter PvP.") },
+        { TriggerType.LeavePvP, ("Leave PvP", "Fires when you leave PvP.") },
+        { TriggerType.EnterGpose, ("Enter Gpose", "Fires when you enter Group pose mode.") },
+        { TriggerType.LeaveGpose, ("Leave Gpose", "Fires when you leave Group pose mode.") }
     };
 
     private static readonly Dictionary<TriggerAction, (string Name, string Description)> ActionInfo = new()
