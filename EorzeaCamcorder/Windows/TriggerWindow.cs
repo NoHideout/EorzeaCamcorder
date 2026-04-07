@@ -15,7 +15,7 @@ public class TriggerWindow : Window, IDisposable
 
     private static readonly Dictionary<TriggerType, (string Name, string Description)> TriggerInfo = new()
     {
-        { TriggerType.PlayerDeath, ("Player Death", "Fires when your character reaches 0 HP.") },
+        { TriggerType.PlayerDeath, ("Death", "Fires when your character dies.") },
         { TriggerType.LowHp, ("Low HP", "Fires when your character's HP falls below the set percentage.") },
         { TriggerType.EnterCombat, ("Enter Combat", "Fires when you engage an enemy.") },
         { TriggerType.LeaveCombat, ("Leave Combat", "Fires when you exit combat.") },
@@ -23,7 +23,10 @@ public class TriggerWindow : Window, IDisposable
         { TriggerType.LeaveDeepDungeon, ("Leave Deep Dungeon", "Fires when you exit a Deep Dungeon.") },
         { TriggerType.EnterDuty, ("Enter Duty", "Fires when you enter an instanced duty.") },
         { TriggerType.LeaveDuty, ("Leave Duty", "Fires when you exit an instanced duty.") },
-        
+        { TriggerType.PartyMemberDeath, ("Party Death", "Fires when anyone in your Party dies excluding yourself.") },
+        { TriggerType.StartPerforming, ("Start Performing", "Fires when you start performing with a musical instrument.") },
+        { TriggerType.StopPerforming, ("Stop Performing", "Fires when you stop performing with a musical instrument.") },
+
         { TriggerType.DutyStarted, ("Duty Started", "Fires after 'Duty Commenced' appears.") },
         { TriggerType.DutyWiped, ("Duty Wiped", "Fires when the entire party is defeated and the screen fades to black.") },
         { TriggerType.DutyRecommenced, ("Duty Recommenced", "Fires when you respawn and the barrier drops.") },
@@ -31,7 +34,7 @@ public class TriggerWindow : Window, IDisposable
         { TriggerType.EnterPvP, ("Enter PvP", "Fires when you enter PvP.") },
         { TriggerType.LeavePvP, ("Leave PvP", "Fires when you leave PvP.") },
         { TriggerType.EnterGpose, ("Enter Gpose", "Fires when you enter Group pose mode.") },
-        { TriggerType.LeaveGpose, ("Leave Gpose", "Fires when you leave Group pose mode.") }
+        { TriggerType.LeaveGpose, ("Leave Gpose", "Fires when you leave Group pose mode.") },
     };
 
     private static readonly Dictionary<TriggerAction, (string Name, string Description)> ActionInfo = new()

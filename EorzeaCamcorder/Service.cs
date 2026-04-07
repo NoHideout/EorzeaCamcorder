@@ -21,6 +21,8 @@ public class Service
     [PluginService] public static IFramework Framework { get; private set; } = null!;
     [PluginService] internal static ICondition Condition { get; private set; } = null!;
     [PluginService] internal static IDutyState DutyState { get; private set; } = null!;
+    [PluginService] public static IPartyList PartyList { get; private set; } = null!;
+
 
     public static Configuration Config { get; set; } = null!;
     public static GameRecorder Recorder { get; set; } = null!;

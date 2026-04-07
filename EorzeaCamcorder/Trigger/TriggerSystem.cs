@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace EorzeaCamcorder.Trigger;
 
@@ -16,6 +17,11 @@ public enum TriggerType
     LeaveDuty = 7,
     EnterGpose = 8,
     LeaveGpose = 9,
+    PartyMemberDeath = 10,
+    
+    StartPerforming = 50,
+    StopPerforming = 51,
+    
     
     //event based
     DutyStarted = 100,
@@ -141,7 +147,47 @@ public static class TriggerSystem
             case TriggerType.LeaveGpose:
                 trigger.Condition = () => !Service.ClientState.IsGPosing;
                 break;
+            case TriggerType.PartyMemberDeath: //Todo swap to chat later rather than isDead or client structs avoiding the ObjectTable
+            {
+                var lastStates = new Dictionary<uint, bool>();
 
+                trigger.Condition = () =>
+                {
+                    bool newDeathDetected = false;
+
+                    for (int i = 0; i < Service.PartyList.Length; i++)
+                    {
+                        var member = Service.PartyList[i];
+                        if (member == null) continue;
+
+                        var id = member.EntityId;
+
+                        if (id == Service.ObjectTable.LocalPlayer?.EntityId)
+                            continue;
+
+                        var obj = Service.ObjectTable.SearchById(id);
+                        bool isDead = obj?.IsDead ?? false;
+
+                        if (lastStates.TryGetValue(id, out var wasDead))
+                        {
+                            if (!wasDead && isDead) newDeathDetected = true;
+                            lastStates[id] = isDead; 
+                        }
+                        else lastStates[id] = isDead;
+                    }
+
+                    return newDeathDetected;
+                };
+                trigger.OnDispose = () => lastStates.Clear();
+                break;
+            }
+            case TriggerType.StartPerforming:
+                trigger.Condition = () => Service.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.Performing];
+                break;
+            case TriggerType.StopPerforming:
+                trigger.Condition = () => !Service.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.Performing];
+                break;
+            
             // Event
             case TriggerType.DutyStarted:
             {
