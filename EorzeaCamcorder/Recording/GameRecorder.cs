@@ -136,13 +136,8 @@ public class GameRecorder : IDisposable
         if (!IsRecording) return;
         IsRecording = false;
 
-        _broadcastStream.FileStream = null;
-        _activeFileStream?.Dispose();
-        _activeFileStream = null;
-
         string tempPath = _currentRecordingTempPath!;
         string finalPath = _currentRecordingFinalPath!;
-        
         string? metadataFile = null;
         if (_chapterMarkers.Count > 0)
         {
@@ -151,6 +146,13 @@ public class GameRecorder : IDisposable
         }
         
         await CheckEngineStop();
+
+        _broadcastStream.FileStream = null;
+        if (_activeFileStream != null)
+        {
+            await _activeFileStream.DisposeAsync();
+            _activeFileStream = null;
+        }
 
         Interlocked.Increment(ref _savingTasks);
         _ = Task.Run(async () => {

@@ -39,8 +39,10 @@ public sealed class Plugin : IDalamudPlugin
         pluginInterface.Create<Service>();
 
         DalamudInterface.UiBuilder.DisableGposeUiHide = true;
-        DalamudInterface.UiBuilder.DisableCutsceneUiHide = true; // enables plugin to record during cutscene
-
+        DalamudInterface.UiBuilder.DisableCutsceneUiHide = true;
+        DalamudInterface.UiBuilder.DisableAutomaticUiHide = true;
+        DalamudInterface.UiBuilder.DisableUserUiHide = true;
+        
         Service.Config = DalamudInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Config.Initialize(DalamudInterface);
 
