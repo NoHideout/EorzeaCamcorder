@@ -119,7 +119,7 @@ public static class TriggerSystem
                 trigger.Condition = () =>
                 {
                     var p = Service.ObjectTable.LocalPlayer;
-                    if (p == null) return false;
+                    if (p == null || p.MaxHp <= 0) return false;
                     return (p.CurrentHp / (float)p.MaxHp) <= config.Threshold;
                 };
                 break;

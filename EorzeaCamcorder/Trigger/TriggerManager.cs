@@ -23,6 +23,7 @@ public class TriggerManager : IDisposable
 
     private void OnUpdate(IFramework framework)
     {
+        if (Service.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.BetweenAreas]) return; //dont process while zoning
         foreach (var trigger in _triggers) trigger.Update();
     }
 

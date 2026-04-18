@@ -34,6 +34,7 @@ public class GameRecorder : IDisposable
     public bool IsSaving => _savingTasks > 0;
     private int _waitingTasks = 0;
     public bool IsWaiting => _waitingTasks > 0;
+    private long _lastReplaySaveTimeMs = -1000;
     
     public event Action<string>? OnRecordingError;
 
@@ -196,7 +197,9 @@ public class GameRecorder : IDisposable
     public void SaveReplayBuffer(string? customFilePath = null, ReplayEventPosition? positionOverride = null)
     {
         if (!IsReplayBufferRunning || _ringBuffer == null) return;
-
+        long currentTime = Environment.TickCount64;
+        if (IsSaving || IsWaiting || (currentTime - _lastReplaySaveTimeMs < 1000)) return;
+        _lastReplaySaveTimeMs = currentTime;
         _ = SaveReplayBufferDelayed(customFilePath, positionOverride);
     }
 
