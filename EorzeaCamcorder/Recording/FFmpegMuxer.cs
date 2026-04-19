@@ -149,6 +149,28 @@ public static class FFmpegMuxer
         }
     }
 
+    public static async Task AutoDetectEncoderAsync()
+    {
+        EncoderType[] priority = { 
+            EncoderType.NvidiaH264, 
+            EncoderType.AmdH264, 
+            EncoderType.IntelH264 
+        };
+        foreach (var type in priority)
+        {
+            if (await TestEncoderAsync(type))
+            {
+                Config.SelectedVideoEncoder = type;
+                Config.Save();
+                Log.Information($"Auto-selected: {type}");
+                return;
+            }
+        }
+        Log.Information("No supported encoder detected. Defaulting to Software.");
+        Config.SelectedVideoEncoder = EncoderType.SoftwareH264;
+        Config.Save();
+    }
+    
     public static async Task<bool> TestEncoderAsync(EncoderType type)
     {
         var profile = EncoderReg.GetProfile(type);

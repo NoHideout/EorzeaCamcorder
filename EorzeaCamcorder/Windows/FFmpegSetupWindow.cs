@@ -145,28 +145,10 @@ public class FFmpegSetupWindow : Window
                 _downloadMessage = "Download complete! You can now use the Service.";
                 Log.Information("FFmpeg successfully downloaded.");
                 
-                EncoderType[] checkOrder = { 
-                    EncoderType.NvidiaH264, 
-                    EncoderType.AmdH264, 
-                    EncoderType.IntelH264 
-                };
-
-                EncoderType bestEncoder = EncoderType.SoftwareH264;
-                foreach (var type in checkOrder)
-                {
-                    if (await FFmpegMuxer.TestEncoderAsync(type))
-                    {
-                        bestEncoder = type;
-                        break;
-                    }
-                }
-                Service.Config.SelectedVideoEncoder = bestEncoder;
-                Service.Config.Save();
-
-                _downloadMessage = $"Setup complete!\nDetected hardware: {bestEncoder}";
-                Log.Information($"FFmpeg setup finished. Auto-selected encoder: {bestEncoder}");
+                await FFmpegMuxer.AutoDetectEncoderAsync();
+                Log.Information($"FFmpeg setup finished. Auto-selected encoder: {Service.Config.SelectedVideoEncoder}");
                 
-                await Task.Delay(1500);
+                await Task.Delay(3000);
                 IsOpen = false;
                 _isDownloading = false;
             }

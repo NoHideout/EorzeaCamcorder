@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
 using Dalamud.Game.Text;
@@ -37,7 +38,9 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
         pluginInterface.Create<Service>();
-
+        
+        bool isInitialInstall = !pluginInterface.ConfigFile.Exists;
+        
         DalamudInterface.UiBuilder.DisableGposeUiHide = true;
         DalamudInterface.UiBuilder.DisableCutsceneUiHide = true;
         DalamudInterface.UiBuilder.DisableAutomaticUiHide = true;
@@ -80,6 +83,10 @@ public sealed class Plugin : IDalamudPlugin
         if (!CheckFFmpeg())
         {
             FFmpegSetupWindow.IsOpen = true;
+        }
+        else if (isInitialInstall)
+        {
+            Task.Run(FFmpegMuxer.AutoDetectEncoderAsync);
         }
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
