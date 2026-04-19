@@ -42,10 +42,24 @@ public sealed class Plugin : IDalamudPlugin
         DalamudInterface.UiBuilder.DisableCutsceneUiHide = true;
         DalamudInterface.UiBuilder.DisableAutomaticUiHide = true;
         DalamudInterface.UiBuilder.DisableUserUiHide = true;
+        try
+        {
+            Service.Config = DalamudInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        }
+        catch (Exception e)
+        {
+            Log.Warning("Failed to load config, reverting to defaults: ", e);
+            Service.Config = new Configuration();
+        }
         
-        Service.Config = DalamudInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Config.Initialize(DalamudInterface);
-
+        bool isNewUpdate = UpdateManager.ProcessUpdates(Config);
+        if (isNewUpdate)
+        {
+            Config.Save();
+            // update window sometime
+        }
+        
         Service.Recorder = new GameRecorder(Config);
         Service.IpcProvider = new IpcProvider();
         IpcProvider.Register();

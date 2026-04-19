@@ -18,7 +18,7 @@ public enum ReplayEventPosition
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; }
+    public int Version { get; set; } = 0;
     public string OutputDirectory { get; set; } = string.Empty;
     public int TargetFps { get; set; } = 60;
     public int VideoBitrateKbps { get; set; } = 8000;
