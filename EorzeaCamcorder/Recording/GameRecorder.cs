@@ -87,7 +87,7 @@ public class GameRecorder : IDisposable
             
             _encoderTask = Task.Run(() => FFmpegMuxer.StartCaptureEngineAsync(
                 _cancellationTokenSource.Token, _frameQueue, _audioQueue, 
-                _audioRecorder, _broadcastStream, _config, OnRecordingError));
+                _audioRecorder, _broadcastStream, OnRecordingError));
 
             Task.Run(async () => await CreateTextureWrap(_cancellationTokenSource.Token, viewportId));
         }
@@ -157,7 +157,7 @@ public class GameRecorder : IDisposable
 
         Interlocked.Increment(ref _savingTasks);
         _ = Task.Run(async () => {
-            try { await FFmpegMuxer.RemuxToFinalFormatAsync(tempPath, finalPath, true, null, metadataFile); }
+            try { await FFmpegMuxer.RemuxFinalFormatAsync(tempPath, finalPath, true, null, metadataFile); }
             finally { Interlocked.Decrement(ref _savingTasks); }
         });
     }
@@ -245,7 +245,7 @@ public class GameRecorder : IDisposable
             try
             {
                 await File.WriteAllBytesAsync(tempTsFile, snapshot);
-                await FFmpegMuxer.RemuxToFinalFormatAsync(tempTsFile, finalPath, true, _config.ReplayBufferSeconds);
+                await FFmpegMuxer.RemuxFinalFormatAsync(tempTsFile, finalPath, true, _config.ReplayBufferSeconds);
             }
             finally { Interlocked.Decrement(ref _savingTasks); }
         });
@@ -263,7 +263,6 @@ public class GameRecorder : IDisposable
 
         if (!_recordingStopwatch.IsRunning)
         {
-            _recordingStopwatch.Start();
             CaptureFrameAsync(1);
             return;
         }
@@ -324,7 +323,12 @@ public class GameRecorder : IDisposable
         }
 
         var frame = new CapturedFrame { Data = rawBuffer, RepeatCount = repeatCount, Width = width, Height = height };
-
+        
+        if (!_recordingStopwatch.IsRunning)
+        {
+            _recordingStopwatch.Start();
+        }
+        
         if (!_audioCaptureStarted) _audioCaptureStarted = true;
         
         if (!queueRef.TryAdd(frame)) 
@@ -379,7 +383,7 @@ public class GameRecorder : IDisposable
                     Interlocked.Increment(ref _savingTasks);
                     try 
                     { 
-                        await FFmpegMuxer.RemuxToFinalFormatAsync(tsFile, finalPath, true); 
+                        await FFmpegMuxer.RemuxFinalFormatAsync(tsFile, finalPath, true); 
                     }
                     finally 
                     { 

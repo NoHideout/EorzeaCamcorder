@@ -13,14 +13,37 @@ namespace EorzeaCamcorder.Recording;
 public static class FFmpegMuxer
 {
     private static IPluginLog Log => Service.Log;
+    private static Configuration Config => Service.Config;
+
+    private static string GetCodec() => Config.VideoEncoder switch
+    {
+        "NVIDIA (NVENC)" => "h264_nvenc",
+        "AMD (AMF)" => "h264_amf",
+        "Intel (QSV)" => "h264_qsv",
+        _ => "libx264"
+    };
     
+    private static void ApplyEncodingOptions(FFMpegArgumentOptions options)
+    {
+        options
+            .WithVideoCodec(GetCodec())
+            .WithAudioCodec(AudioCodec.Aac)
+            .WithCustomArgument($"-b:v {Config.VideoBitrateKbps}k")
+            .WithCustomArgument("-pix_fmt yuv420p")
+            .WithCustomArgument($"-g {Config.TargetFps}");
+
+        if (Config.ResolutionHeight > 0)
+        {
+            options.WithCustomArgument($"-vf scale=-2:{Config.ResolutionHeight}");
+        }
+    }
+
     public static async Task StartCaptureEngineAsync(
-        CancellationToken token, 
-        BlockingCollection<CapturedFrame> videoQueue, 
-        BlockingCollection<byte[]> audioQueue, 
+        CancellationToken token,
+        BlockingCollection<CapturedFrame> videoQueue,
+        BlockingCollection<byte[]> audioQueue,
         AudioRecorder audioRecorder,
-        BroadcastStream outputStream, 
-        Configuration config,
+        BroadcastStream outputStream,
         Action<string>? onRecordingError)
     {
         try
@@ -31,40 +54,25 @@ public static class FFmpegMuxer
             int height = firstFrame.Height;
 
             audioRecorder.GetFormat(out int sr, out int ch, out int bps);
-
             string audioFmt = bps == 32 ? "f32le" : "s16le";
 
-            var videoPipeSource = new VideoPipeSource(videoQueue, firstFrame, width, height, config.TargetFps);
+            var videoPipeSource = new VideoPipeSource(videoQueue, firstFrame, width, height, Config.TargetFps);
             var audioPipeSource = new AudioPipeSource(audioQueue, sr, ch, audioFmt);
 
-            string targetCodec = config.VideoEncoder switch
-            {
-                "NVIDIA (NVENC)" => "h264_nvenc",
-                "AMD (AMF)" => "h264_amf",
-                "Intel (QSV)" => "h264_qsv",
-                _ => "libx264"
-            };
+            string codec = GetCodec();
 
-            Log.Information($"Starting Background FFmpeg Engine... Res: {width}x{height}, Encoder: {targetCodec}");
+            Log.Information($"Starting FFmpeg: Res: {width}x{height}, Encoder: {codec}");
 
             await FFMpegArguments
-                  .FromPipeInput(videoPipeSource)
-                  .AddPipeInput(audioPipeSource)
-                  .OutputToPipe(new StreamPipeSink(outputStream), options => 
-                  {
-                      options
-                          .WithVideoCodec(targetCodec) 
-                          .WithAudioCodec(AudioCodec.Aac)
-                          .ForceFormat("mpegts")
-                          .WithCustomArgument($"-b:v {config.VideoBitrateKbps}k")
-                          .WithCustomArgument("-pix_fmt yuv420p")
-                          .WithCustomArgument($"-g {config.TargetFps}");
-
-                      if (config.ResolutionHeight > 0)
-                          options.WithCustomArgument($"-vf scale=-2:{config.ResolutionHeight}");
-                  })
-                  .NotifyOnError(msg => Log.Debug($"[FFmpeg Engine] {msg}"))
-                  .ProcessAsynchronously();
+                .FromPipeInput(videoPipeSource)
+                .AddPipeInput(audioPipeSource)
+                .OutputToPipe(new StreamPipeSink(outputStream), options =>
+                {
+                    ApplyEncodingOptions(options);
+                    options.ForceFormat("mpegts");
+                })
+                .NotifyOnError(msg => Log.Debug($"[FFmpeg Engine] {msg}"))
+                .ProcessAsynchronously();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -72,40 +80,60 @@ public static class FFmpegMuxer
             Log.Error($"Capture Engine Error: {ex.Message}");
             onRecordingError?.Invoke($"Engine failed: {ex.Message}");
         }
-        finally { audioRecorder.Stop(); }
+        finally
+        {
+            audioRecorder.Stop();
+        }
     }
 
-    public static async Task RemuxToFinalFormatAsync(string inputTsFile, string finalFilePath, bool deleteInput, int? trimFromEndSeconds = null, string? metadataFilePath = null)
+    public static async Task RemuxFinalFormatAsync(
+        string inputTsFile,
+        string finalFilePath,
+        bool deleteInput,
+        int? trimFromEndSeconds = null,
+        string? metadataFilePath = null)
     {
         try
         {
-            Log.Information($"Remuxing stream to: {finalFilePath}");
+            Log.Information($"Processing video to: {finalFilePath}");
 
-            var args = FFMpegArguments.FromFileInput(inputTsFile, true, options => 
+            var config = Service.Config;
+            bool isReplay = trimFromEndSeconds.HasValue;
+
+            var args = FFMpegArguments.FromFileInput(inputTsFile, true, options =>
             {
-                if (trimFromEndSeconds.HasValue)
+                if (isReplay)
                 {
-                    options.WithCustomArgument($"-sseof -{trimFromEndSeconds.Value}");
+                    options.WithCustomArgument($"-sseof -{trimFromEndSeconds!.Value}");
                 }
             });
-            
+
             if (!string.IsNullOrEmpty(metadataFilePath) && File.Exists(metadataFilePath))
             {
                 args = args.AddFileInput(metadataFilePath);
             }
-            
-            await args.OutputToFile(finalFilePath, true, options => 
+
+            await args.OutputToFile(finalFilePath, true, options =>
             {
                 options.WithFastStart();
-                if (!string.IsNullOrEmpty(metadataFilePath) && File.Exists(metadataFilePath))
+
+                if (isReplay)
                 {
-                    options.WithCustomArgument("-map 0 -map_metadata 1 -c copy");
+                    ApplyEncodingOptions(options);
                 }
                 else
                 {
-                    options.WithCustomArgument("-c copy");
+                    if (!string.IsNullOrEmpty(metadataFilePath) && File.Exists(metadataFilePath))
+                    {
+                        options.WithCustomArgument("-map 0 -map_metadata 1 -c copy");
+                    }
+                    else
+                    {
+                        options.WithCustomArgument("-c copy");
+                    }
                 }
-            }).ProcessAsynchronously();
+            })
+            .ProcessAsynchronously();
 
             Log.Information($"Successfully saved: {finalFilePath}");
         }
@@ -115,8 +143,15 @@ public static class FFmpegMuxer
         }
         finally
         {
-            if (deleteInput) { try { File.Delete(inputTsFile); } catch { } }
-            if (!string.IsNullOrEmpty(metadataFilePath)) { try { File.Delete(metadataFilePath); } catch { } }
+            if (deleteInput)
+            {
+                try { File.Delete(inputTsFile); } catch { }
+            }
+
+            if (!string.IsNullOrEmpty(metadataFilePath))
+            {
+                try { File.Delete(metadataFilePath); } catch { }
+            }
         }
     }
 }
