@@ -1,9 +1,12 @@
 # Eorzea Camcorder
 A Dalamud plugin for recording gameplay, UI, and moments without leaving the game.
 
+`https://raw.githubusercontent.com/NoHideout/EorzeaCamcorder/refs/heads/master/repo.json`
+
 ## Features
 * **Recording**: Record your gameplay into multiple formats.
 * **Replay**: Clip the last few seconds of your gameplay.
+* **Trigger**: Automatically record and clip important events in game.
 
 ## Planned Features
 * **Video playback**
