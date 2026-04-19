@@ -8,6 +8,7 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using EorzeaCamcorder.Recording;
 using FFMpegCore;
 using FFMpegCore.Extensions.Downloader;
     
@@ -144,7 +145,28 @@ public class FFmpegSetupWindow : Window
                 _downloadMessage = "Download complete! You can now use the Service.";
                 Log.Information("FFmpeg successfully downloaded.");
                 
-                await Task.Delay(3000);
+                EncoderType[] checkOrder = { 
+                    EncoderType.NvidiaH264, 
+                    EncoderType.AmdH264, 
+                    EncoderType.IntelH264 
+                };
+
+                EncoderType bestEncoder = EncoderType.SoftwareH264;
+                foreach (var type in checkOrder)
+                {
+                    if (await FFmpegMuxer.TestEncoderAsync(type))
+                    {
+                        bestEncoder = type;
+                        break;
+                    }
+                }
+                Service.Config.SelectedVideoEncoder = bestEncoder;
+                Service.Config.Save();
+
+                _downloadMessage = $"Setup complete!\nDetected hardware: {bestEncoder}";
+                Log.Information($"FFmpeg setup finished. Auto-selected encoder: {bestEncoder}");
+                
+                await Task.Delay(1500);
                 IsOpen = false;
                 _isDownloading = false;
             }

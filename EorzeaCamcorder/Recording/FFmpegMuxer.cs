@@ -148,4 +148,50 @@ public static class FFmpegMuxer
             }
         }
     }
+
+    public static async Task<bool> TestEncoderAsync(EncoderType type)
+    {
+        var profile = EncoderReg.GetProfile(type);
+        if (!profile.IsHardwareAccelerated) return true;
+
+        try
+        {
+            int width = 320; 
+            int height = 240;
+            int stride = width * 4;
+            int frameSize = stride * height;
+
+            byte[] rawData = System.Buffers.ArrayPool<byte>.Shared.Rent(frameSize);
+        
+            Array.Clear(rawData, 0, rawData.Length);
+
+            var frame = new CapturedFrame { 
+                Data = rawData, 
+                RepeatCount = 1, 
+                Width = width, 
+                Height = height 
+            };
+
+            using var testQueue = new BlockingCollection<CapturedFrame>();
+            testQueue.Add(frame);
+            testQueue.CompleteAdding();
+
+            var videoPipe = new VideoPipeSource(testQueue, frame, width, height, 1);
+
+            await FFMpegArguments
+                  .FromPipeInput(videoPipe)
+                  .OutputToFile("NUL", true, options => options
+                    .WithVideoCodec(profile.FFmpegCodec)
+                    .WithCustomArgument("-frames:v 1")
+                    .ForceFormat("null"))
+                  .ProcessAsynchronously();
+        
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Service.Log.Debug($"Hardware encoder {type} test failed: {ex.Message}");
+            return false;
+        }
+    }
 }
