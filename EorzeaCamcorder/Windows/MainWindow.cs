@@ -20,12 +20,13 @@ public class MainWindow : Window, IDisposable
 
     public MainWindow() : base("EorzeaCamcorder", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
+        Size = new Vector2(300, 400);
+        SizeCondition = ImGuiCond.FirstUseEver;
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(260, 200),
-            MaximumSize = new Vector2(600, 600)
+            MinimumSize = new Vector2(160, 200),
+            MaximumSize = new Vector2(300, 400)
         };
-
         Recorder.OnRecordingError += (msg) =>
         {
             _errorMessage = msg;
@@ -178,7 +179,14 @@ public class MainWindow : Window, IDisposable
 
         ImGui.SameLine();
 
-        if (ImGui.Button("Settings", new Vector2(half, 30)))
+        if (ImGui.Button("Trigger", new Vector2(half, 30)))
+        {
+            Service.TriggerWindow.Toggle();
+        }
+        
+        ImGui.Spacing();
+        
+        if (ImGui.Button("Settings",  new Vector2(half - 5, 30)))
         {
             Service.ConfigWindow.Toggle();
         }

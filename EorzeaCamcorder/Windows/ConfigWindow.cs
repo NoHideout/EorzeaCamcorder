@@ -125,14 +125,6 @@ public class ConfigWindow : Window, IDisposable
             
             ImGui.Spacing();
         }
-
-        if (ImGui.CollapsingHeader("Experimental"))
-        {
-            if (ImGui.Button("Open Trigger Configuration", new Vector2(ImGui.GetContentRegionAvail().X, 30)))
-            {
-                Service.TriggerWindow.Toggle();
-            }
-        }
     }
 
     public override void OnClose()

@@ -189,7 +189,7 @@ public sealed class Plugin : IDalamudPlugin
         }
         else if (isBuffer)
         {
-            _dtrEntry.Text = SeIconChar.Square.ToIconString() + " BUFF";
+            _dtrEntry.Text = SeIconChar.Square.ToIconString() + " REP";
             _dtrEntry.Tooltip = "Replay buffer is running";
         }
     }
