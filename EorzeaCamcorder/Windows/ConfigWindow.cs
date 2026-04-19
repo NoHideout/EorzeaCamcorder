@@ -3,6 +3,7 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
+using EorzeaCamcorder.Recording;
 
 namespace EorzeaCamcorder.Windows;
 
@@ -80,13 +81,13 @@ public class ConfigWindow : Window, IDisposable
                 config.VideoBitrateKbps = bitrate;
             }
 
-            string[] encoders = { "Software (x264)", "NVIDIA (NVENC)", "AMD (AMF)", "Intel (QSV)" };
-            int currentEncoderIdx = Array.IndexOf(encoders, config.VideoEncoder);
+            string[] encoders = EncoderReg.ProfileNames;
+            int currentEncoderIdx = Array.FindIndex(EncoderReg.Profiles, p => p.Type == config.SelectedVideoEncoder);
             if (currentEncoderIdx == -1) currentEncoderIdx = 0;
-
+            
             if (ImGui.Combo("Video Encoder", ref currentEncoderIdx, encoders, encoders.Length))
             {
-                config.VideoEncoder = encoders[currentEncoderIdx];
+                config.SelectedVideoEncoder = EncoderReg.Profiles[currentEncoderIdx].Type;
             }
             DrawTooltipIfHovered("Hardware encoding offloads work to your GPU, saving CPU performance.\nIf recordings fail to start, your GPU may not support the selected encoder.");
             

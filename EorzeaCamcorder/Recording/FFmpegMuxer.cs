@@ -15,13 +15,7 @@ public static class FFmpegMuxer
     private static IPluginLog Log => Service.Log;
     private static Configuration Config => Service.Config;
 
-    private static string GetCodec() => Config.VideoEncoder switch
-    {
-        "NVIDIA (NVENC)" => "h264_nvenc",
-        "AMD (AMF)" => "h264_amf",
-        "Intel (QSV)" => "h264_qsv",
-        _ => "libx264"
-    };
+    private static string GetCodec() => EncoderReg.GetProfile(Config.SelectedVideoEncoder).FFmpegCodec;
     
     private static void ApplyEncodingOptions(FFMpegArgumentOptions options)
     {

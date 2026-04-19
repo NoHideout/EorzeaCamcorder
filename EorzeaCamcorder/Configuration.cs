@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Dalamud.Configuration;
 using Dalamud.Plugin;
+using EorzeaCamcorder.Recording;
 using EorzeaCamcorder.Trigger;
 
 namespace EorzeaCamcorder;
@@ -23,7 +24,7 @@ public class Configuration : IPluginConfiguration
     public int VideoBitrateKbps { get; set; } = 8000;
     public int ResolutionHeight { get; set; } = 0;
     public string OutputFormat { get; set; } = "mp4";
-    public string VideoEncoder { get; set; } = "Software (x264)";
+    public EncoderType SelectedVideoEncoder { get; set; } = EncoderType.SoftwareH264;
     public bool AllowIpc { get; set; } = false;
     public int ReplayBufferSeconds { get; set; } = 30;
     public ReplayEventPosition ReplayEventPosition { get; set; } = ReplayEventPosition.Middle;    
