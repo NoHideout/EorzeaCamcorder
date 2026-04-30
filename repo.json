@@ -13,7 +13,7 @@
       "DownloadLinkInstall": "https://github.com/NoHideout/EorzeaCamcorder/releases/download/v1.3.0/EorzeaCamcorder.zip",
       "DownloadLinkTesting": "https://github.com/NoHideout/EorzeaCamcorder/releases/download/v1.3.0/EorzeaCamcorder.zip",
       "DownloadLinkUpdate": "https://github.com/NoHideout/EorzeaCamcorder/releases/download/v1.3.0/EorzeaCamcorder.zip",
-      "DalamudApiLevel": 14,
+      "DalamudApiLevel": 15,
       "LoadRequiredState": 0,
       "LoadSync": false,
       "CanUnloadAsync": false,

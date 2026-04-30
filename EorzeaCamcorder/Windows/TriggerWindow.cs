@@ -175,8 +175,7 @@ public class TriggerWindow : Window, IDisposable
     {
         if (string.IsNullOrEmpty(description) || !ImGui.IsItemHovered()) return;
 
-        using var tooltip = ImRaii.Tooltip();
-        if (tooltip)
+        using (ImRaii.Tooltip())
         {
             ImGui.PushTextWrapPos(ImGui.GetFontSize() * 35f); 
             ImGui.TextUnformatted(description);

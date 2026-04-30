@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Dalamud.Plugin.Services;
 
 namespace EorzeaCamcorder.Trigger;
 
@@ -191,28 +192,28 @@ public static class TriggerSystem
             // Event
             case TriggerType.DutyStarted:
             {
-                EventHandler<ushort> handler = (_, _) => trigger.Execute();
+                IDutyState.DutyStartedDelegate handler = _ => trigger.Execute();
                 Service.DutyState.DutyStarted += handler;
                 trigger.OnDispose = () => Service.DutyState.DutyStarted -= handler;
                 break;
             }
             case TriggerType.DutyWiped:
             {
-                EventHandler<ushort> handler = (_, _) => trigger.Execute();
+                IDutyState.DutyWipedDelegate handler = _ => trigger.Execute();
                 Service.DutyState.DutyWiped += handler;
                 trigger.OnDispose = () => Service.DutyState.DutyWiped -= handler;
                 break;
             }
             case TriggerType.DutyRecommenced:
             {
-                EventHandler<ushort> handler = (_, _) => trigger.Execute();
+                IDutyState.DutyRecommencedDelegate handler = _ => trigger.Execute();
                 Service.DutyState.DutyRecommenced += handler;
                 trigger.OnDispose = () => Service.DutyState.DutyRecommenced -= handler;
                 break;
             }
             case TriggerType.DutyCompleted:
             {
-                EventHandler<ushort> handler = (_, _) => trigger.Execute();
+                IDutyState.DutyCompletedDelegate handler = _ => trigger.Execute();
                 Service.DutyState.DutyCompleted += handler;
                 trigger.OnDispose = () => Service.DutyState.DutyCompleted -= handler;
                 break;

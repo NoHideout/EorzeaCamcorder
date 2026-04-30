@@ -137,8 +137,7 @@ public class ConfigWindow : Window, IDisposable
     {
         if (!ImGui.IsItemHovered()) return;
 
-        using var tooltip = ImRaii.Tooltip();
-        if (tooltip)
+        using (ImRaii.Tooltip())
         {
             ImGui.TextUnformatted(description);
         }
