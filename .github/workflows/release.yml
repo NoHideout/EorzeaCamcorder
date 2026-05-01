@@ -63,7 +63,7 @@ jobs:
                   $new_path = './repo.json'
                   $content = get-content -path $path
                   
-                  $content = $content -replace '\{version}\',$ver
+                  $content = $content -replace '{version}',$ver
                   
                   set-content -Path $new_path -Value $content
                   git add repo.json
