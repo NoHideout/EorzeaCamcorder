@@ -4,7 +4,7 @@ on:
     workflow_dispatch:
         inputs:
             version:
-                description: "Version tag to create (ex: 0.1.2)"
+                description: "Version tag to create (ex: 0.1.2.0)"
                 required: true
 
 jobs:
@@ -40,7 +40,6 @@ jobs:
               with:
                   filename: '../../../../EorzeaCamcorder.zip'
                   directory: './EorzeaCamcorder/bin/x64/Release/'
-                  exclusions: 'EorzeaCamcorder EorzeaCamcorder/*'
 
             - name: Upload Release
               uses: ncipollo/release-action@v1
@@ -60,14 +59,11 @@ jobs:
                   git fetch origin master && git checkout master
                   $ver = '${{ github.event.inputs.version }}'
 
-                  $padded_ver = $ver
-                  if (($padded_ver -split '\.').Count -eq 3) { $padded_ver = "$padded_ver.0" }
-                  
                   $path = './Resources/Templates/repo.tmpl'
                   $new_path = './repo.json'
                   $content = get-content -path $path
                   
-                  $content = $content -replace '\{version\}', $padded_ver
+                  $content = $content -replace '\{version}\',$ver
                   
                   set-content -Path $new_path -Value $content
                   git add repo.json
